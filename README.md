@@ -1,1 +1,1 @@
-# discord-bot-tfc
+# DSB Discord Bot - Terraform
