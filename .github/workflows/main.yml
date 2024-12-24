@@ -9,7 +9,27 @@ on:
 jobs:
   syntax-check:
     uses: ./.github/workflows/syntax-check.yml
+  create-ecr-repositories:
+    needs:
+      - syntax-check
+    uses: ./.github/workflows/terraform-apply.yml
+    permissions:
+      contents: read
+    secrets: inherit
+    with:
+      tf_workspace: "dsb-discord-bot-repositories"
+      config_directory: "./terraform/repositories"
   publish-images:
     uses: ./.github/workflows/docker-publish.yml
     secrets: inherit
-    needs: syntax-check
+    needs: create-ecr-repositories
+  create-core-infrastructure:
+    needs:
+      - publish-images
+    uses: ./.github/workflows/terraform-apply.yml
+    permissions:
+      contents: read
+    secrets: inherit
+    with:
+      tf_workspace: "dsb-discord-bot"
+      config_directory: "./terraform/core"

@@ -96,3 +96,49 @@ jobs:
 
       - name: Push Docker image to ECR
         run: docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/discord-bot-security-newsletter-image:latest
+  publish_discord_bot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check if there are changes in lambdas/discord-bot
+        id: check_changes
+        run: |
+          if git rev-parse --verify HEAD >/dev/null 2>&1; then
+            # Check against HEAD if this is not the first commit
+            if git diff --quiet HEAD -- 'lambdas/discord-bot/**'; then
+              echo "No changes detected in lambdas/discord-bot"
+              echo "changes=false" >> $GITHUB_ENV
+            else
+              echo "Changes detected in lambdas/discord-bot"
+              echo "changes=true" >> $GITHUB_ENV
+            fi
+          else
+            # Handle the initial commit case
+            if git ls-files -- 'lambdas/discord-bot/**' | grep -q .; then
+              echo "Changes detected in lambdas/discord-bot (initial commit)"
+              echo "changes=true" >> $GITHUB_ENV
+            else
+              echo "No changes detected in lambdas/discord-bot (initial commit)"
+              echo "changes=false" >> $GITHUB_ENV
+            fi
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        run: aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+
+      - name: Build Docker image
+        working-directory: ./lambdas/discord-bot
+        run: docker build -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/discord-bot-image:latest -f Dockerfile .
+
+      - name: Push Docker image to ECR
+        run: docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/discord-bot-image:latest

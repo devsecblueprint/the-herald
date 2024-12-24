@@ -1,3 +1,17 @@
+#######
+# SSM Parameters
+#######
+module "discord_token" {
+  source = "./modules/ssm"
+
+  name        = "/credentials/discord/token"
+  description = "Discord Token"
+  value       = var.DISCORD_TOKEN
+  type        = "SecureString"
+
+}
+
+# Youtube Channel Subscriber
 module "youtube_channel_subscriber_exec_role" {
   source = "./modules/iam"
 
@@ -34,9 +48,8 @@ module "youtube_channel_subscriber" {
   }
 
   create_event_rule              = true
-  event_rule_name                = "${var.resource_prefix}-sub-lambda-event-rule"
-  event_target_id                = "${var.resource_prefix}-sub-lambda-event-target"
-  event_rule_description         = "Triggers Lambda function subscriber every day!"
+  event_rule_name                = "${var.resource_prefix}-lambda-event-rule"
+  event_target_id                = "${var.resource_prefix}-lambda-event-target"
   event_rule_schedule_expression = "rate(1 day)"
 
   create_permission    = true
@@ -53,7 +66,7 @@ module "youtube_channel_subscriber_api_gw" {
   lambda_function_invoke_arn = module.discord_bot.invoke_arn
 }
 
-
+# Security Newsletter Creation
 module "security_newsletter_exec_role" {
   source = "./modules/iam"
 
@@ -86,6 +99,7 @@ module "security_newsletter" {
   role_arn            = module.security_newsletter_exec_role.arn
 }
 
+# Discord Bot
 module "discord_bot_exec_role" {
   source = "./modules/iam"
 
@@ -112,9 +126,22 @@ module "discord_bot_exec_role" {
 module "discord_bot" {
   source = "./modules/lambda"
 
-  function_name = var.resource_prefix
-  # TODO: Change the ECR Repo Image Below
-  ecr_repository_name = "${var.resource_prefix}-security-newsletter-image"
-  timeout             = 10
+  function_name       = var.resource_prefix
+  ecr_repository_name = "${var.resource_prefix}-image"
+  timeout             = 60
   role_arn            = module.discord_bot_exec_role.arn
+
+  create_event_rule              = true
+  event_rule_name                = "${var.resource_prefix}-lambda-event-rule"
+  event_target_id                = "${var.resource_prefix}-lambda-event-target"
+  event_rule_schedule_expression = "rate(1 day)"
+
+  environment_variables = {
+    "DISCORD_GUILD_ID" : var.DISCORD_GUILD_ID
+    "DISCORD_TOKEN_PARAMETER" : module.discord_token.name
+  }
+
+  create_permission    = true
+  permission_action    = "lambda:InvokeFunction"
+  permission_principal = "events.amazonaws.com"
 }

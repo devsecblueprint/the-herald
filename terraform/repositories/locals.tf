@@ -22,6 +22,9 @@ locals {
     "${var.resource_prefix}-security-newsletter-image",
 
     # YouTube Listener Image
-    "${var.resource_prefix}-youtube-subscriber-image"
+    "${var.resource_prefix}-youtube-subscriber-image",
+
+    # Main Bot
+    "${var.resource_prefix}-image"
   ]
 }
