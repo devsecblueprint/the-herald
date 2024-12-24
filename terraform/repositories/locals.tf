@@ -19,9 +19,9 @@ locals {
   EOF
   ecr_repo_names = [
     # Newsletter Images
-    "dsb-discord-hackernews-image",
+    "${var.resource_prefix}-hackernews-image",
 
     # YouTube Listener Image
-    "dsb-discord-youtube-subscriber-image"
+    "${var.resource_prefix}-youtube-subscriber-image"
   ]
 }

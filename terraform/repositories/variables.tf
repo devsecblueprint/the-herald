@@ -5,5 +5,5 @@ variable "region" {
 
 variable "resource_prefix" {
   description = "Prefix for resources"
-  default     = "dsb-discord-bot"
+  default     = "discord-bot"
 }

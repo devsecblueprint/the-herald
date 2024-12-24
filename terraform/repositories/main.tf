@@ -13,4 +13,6 @@ resource "aws_ecr_lifecycle_policy" "ecr_lifecycle_policy" {
   count      = length(local.ecr_repo_names)
   repository = local.ecr_repo_names[count.index]
   policy     = local.ecr_lifecycle_policy
+
+  depends_on = [ aws_ecr_repository.ecr_repo ]
 }

@@ -8,11 +8,6 @@ variable "role_arn" {
   type        = string
 }
 
-variable "image_uri" {
-  description = "URI of the container image for the Lambda function"
-  type        = string
-}
-
 variable "timeout" {
   description = "Timeout for the Lambda function"
   type        = number
