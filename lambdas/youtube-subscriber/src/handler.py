@@ -25,10 +25,11 @@ def main(event, _):
     logging.info("Endpoint: %s", HUB_ENDPOINT)
     logging.info("Event Trigger: %s", event)
 
+    failed_channels = []
     for channel_handle in CHANNEL_HANDLES.split(","):
         channel_id = scrape_channel_id_from_handle(channel_handle)
         if channel_id is None:
-            logging.error(f"Could not find channel ID for handle - {channel_handle}")
+            logging.error("Could not find channel ID for handle - %s", channel_handle)
 
         logging.info("Found channel ID: %s", channel_id)
         logging.info("Subscribing to channel %s", channel_id)
@@ -47,16 +48,24 @@ def main(event, _):
         # Check the response
         if response.status_code == 202:
             logging.info("Subscription request accepted!")
+        else:
+            logging.error("Subscription request failed: %s", response)
+            failed_channels.append(channel_handle)
 
-        logging.error("Subscription request failed: %s", response)
+    return {"failedChannelRequests": failed_channels}
 
 
 def scrape_channel_id_from_handle(handle: str) -> str:
+    """
+    Scrapes the channel ID from the YouTube handle
+    """
+    logging.info("Scraping channel ID from handle: %s", handle)
+
     # Remove the '@' if it’s there
     handle_url_part = handle.lstrip("@")
     url = f"https://www.youtube.com/@{handle_url_part}"
 
-    response = requests.get(url)
+    response = requests.get(url, timeout=10)
     response.raise_for_status()
 
     # Look for "/channel/UC..." in the HTML

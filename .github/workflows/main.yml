@@ -12,3 +12,4 @@ jobs:
   publish-images:
     uses: ./.github/workflows/docker-publish.yml
     secrets: inherit
+    needs: syntax-check

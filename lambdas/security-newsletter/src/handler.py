@@ -1,3 +1,7 @@
+"""
+Main handler.
+"""
+
 import logging
 
 
