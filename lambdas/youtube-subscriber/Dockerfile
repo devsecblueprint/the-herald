@@ -11,6 +11,7 @@ RUN pip install \
     --no-cache-dir \
     awslambdaric \
     -r requirements.txt
+
 # Create entry script in build stage
 RUN echo '#!/bin/sh\nexec python -m awslambdaric "$@"' > /app/entry.sh && \
     chmod +x /app/entry.sh
@@ -24,5 +25,5 @@ COPY ./src/* .
 ENV PATH="/var/task/.venv/bin:$PATH"
 ENV PYTHONPATH="/var/task"
 
-ENTRYPOINT [ "/var/task/entry.sh" ]
+ENTRYPOINT [ "/var/task/.venv/bin/python", "-m", "awslambdaric" ]
 CMD [ "handler.main" ]

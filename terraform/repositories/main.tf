@@ -2,7 +2,6 @@
 resource "aws_ecr_repository" "ecr_repo" {
   count                = length(local.ecr_repo_names)
   name                 = local.ecr_repo_names[count.index]
-  image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true

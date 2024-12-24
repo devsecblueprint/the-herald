@@ -1,0 +1,14 @@
+name: "Default Workflow (main)"
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  syntax-check:
+    uses: ./.github/workflows/syntax-check.yml
+  publish-images:
+    uses: ./.github/workflows/docker-publish.yml
+    secrets: inherit

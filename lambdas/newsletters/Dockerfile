@@ -1,9 +1,29 @@
-FROM cgr.dev/chainguard/python:latest-dev
+FROM cgr.dev/chainguard/python:latest-dev as build
 
-RUN pip install awslambdaric
+WORKDIR /app
+USER root
+RUN python -m venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
 
-COPY ./src .
+# Install Lambda RIC and dependencies
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN pip install \
+    --no-cache-dir \
+    awslambdaric \
+    -r requirements.txt
 
-CMD ["handler.main"]
+# Create entry script in build stage
+RUN echo '#!/bin/sh\nexec python -m awslambdaric "$@"' > /app/entry.sh && \
+    chmod +x /app/entry.sh
+
+FROM cgr.dev/chainguard/python:latest
+
+WORKDIR /var/task
+COPY --from=build /app/.venv /var/task/.venv
+COPY --from=build /app/entry.sh /var/task/entry.sh
+COPY ./src/* .
+ENV PATH="/var/task/.venv/bin:$PATH"
+ENV PYTHONPATH="/var/task"
+
+ENTRYPOINT [ "/var/task/.venv/bin/python", "-m", "awslambdaric" ]
+CMD [ "handler.main" ]

@@ -18,24 +18,7 @@ module "youtube_channel_subscriber_exec_role" {
     "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
     "arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess"
   ]
-  inline_policy_enabled = true
-  inline_policy = jsonencode(
-    {
-      "Version" : "2012-10-17",
-      "Statement" : [
-        {
-          "Effect" : "Allow",
-          "Action" : "sns:Publish",
-          "Resource" : module.default_sns_topic.arn
-        },
-        {
-          "Effect" : "Allow",
-          "Action" : "bedrock:InvokeModel",
-          "Resource" : "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0"
-        }
-      ]
-    }
-  )
+  inline_policy_enabled = false
 }
 
 module "youtube_channel_subscriber" {
