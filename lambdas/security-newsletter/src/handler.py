@@ -1,5 +1,6 @@
 import logging
 
+
 def main(event, _):
     """
     This is the main entry point for the Lambda function.
@@ -7,7 +8,4 @@ def main(event, _):
     """
     logging.info("Event: %s", event)
 
-    return {
-        'statusCode': 200,
-        'body': 'Hello from Lambda!'
-    }
+    return {"statusCode": 200, "body": "Hello from Lambda!"}

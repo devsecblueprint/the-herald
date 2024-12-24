@@ -19,7 +19,7 @@ locals {
   EOF
   ecr_repo_names = [
     # Newsletter Images
-    "${var.resource_prefix}-hackernews-image",
+    "${var.resource_prefix}-security-newsletter-image",
 
     # YouTube Listener Image
     "${var.resource_prefix}-youtube-subscriber-image"

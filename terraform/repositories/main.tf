@@ -1,7 +1,7 @@
 # ECR Repository and Lifecycle policies
 resource "aws_ecr_repository" "ecr_repo" {
-  count                = length(local.ecr_repo_names)
-  name                 = local.ecr_repo_names[count.index]
+  count = length(local.ecr_repo_names)
+  name  = local.ecr_repo_names[count.index]
 
   image_scanning_configuration {
     scan_on_push = true
@@ -13,5 +13,5 @@ resource "aws_ecr_lifecycle_policy" "ecr_lifecycle_policy" {
   repository = local.ecr_repo_names[count.index]
   policy     = local.ecr_lifecycle_policy
 
-  depends_on = [ aws_ecr_repository.ecr_repo ]
+  depends_on = [aws_ecr_repository.ecr_repo]
 }
