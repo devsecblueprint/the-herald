@@ -7,7 +7,7 @@ resource "aws_api_gateway_rest_api" "this" {
 resource "aws_api_gateway_resource" "this" {
   rest_api_id = aws_api_gateway_rest_api.this.id
   parent_id   = aws_api_gateway_rest_api.this.root_resource_id
-  path_part   = "default"
+  path_part   = "videos"
 }
 
 # Define the method (GET, POST, etc.)
@@ -41,4 +41,46 @@ resource "aws_lambda_permission" "this" {
 resource "aws_api_gateway_deployment" "this" {
   depends_on  = [aws_api_gateway_integration.this]
   rest_api_id = aws_api_gateway_rest_api.this.id
+}
+
+resource "aws_api_gateway_stage" "this" {
+  deployment_id = aws_api_gateway_deployment.this.id
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  stage_name    = "v1"
+}
+
+resource "aws_api_gateway_method_settings" "this" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  stage_name  = aws_api_gateway_stage.this.stage_name
+  method_path = "*/*"
+
+  settings {
+    metrics_enabled = true
+    logging_level   = "INFO"
+  }
+
+  depends_on = [aws_api_gateway_account.this]
+}
+
+resource "aws_iam_role" "this" {
+  name               = "${var.api_name}-logging-role"
+  assume_role_policy = data.aws_iam_policy_document.this.json
+}
+
+data "aws_iam_policy_document" "this" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["apigateway.amazonaws.com"]
+    }
+  }
+}
+resource "aws_iam_role_policy_attachment" "this" {
+  role       = aws_iam_role.this.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+}
+
+resource "aws_api_gateway_account" "this" {
+  cloudwatch_role_arn = aws_iam_role.this.arn
 }

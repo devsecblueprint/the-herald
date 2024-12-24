@@ -87,7 +87,19 @@ module "security_newsletter_exec_role" {
     "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
     "arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess"
   ]
-  inline_policy_enabled = false
+  inline_policy_enabled = true
+  inline_policy = jsonencode({
+    "Version" : "2012-10-17"
+    "Statement" : [
+      {
+        "Action" : [
+          "sqs:SendMessage"
+        ]
+        "Effect" : "Allow"
+        "Resource" : aws_sqs_queue.discord_bot_queue.arn
+      }
+    ]
+  })
 }
 
 module "security_newsletter" {
@@ -97,6 +109,10 @@ module "security_newsletter" {
   ecr_repository_name = "${var.resource_prefix}-security-newsletter-image"
   timeout             = 10
   role_arn            = module.security_newsletter_exec_role.arn
+
+  environment_variables = {
+    "SQS_QUEUE_URL" : aws_sqs_queue.discord_bot_queue.url
+  }
 }
 
 # Discord Bot
@@ -120,7 +136,21 @@ module "discord_bot_exec_role" {
     "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
     "arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess"
   ]
-  inline_policy_enabled = false
+  inline_policy_enabled = true
+  inline_policy = jsonencode({
+    "Version" : "2012-10-17"
+    "Statement" : [
+      {
+        "Action" : [
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes"
+        ]
+        "Effect" : "Allow"
+        "Resource" : aws_sqs_queue.discord_bot_queue.arn
+      }
+    ]
+  })
 }
 
 module "discord_bot" {
@@ -139,7 +169,7 @@ module "discord_bot" {
   environment_variables = {
     "DISCORD_GUILD_ID" : var.DISCORD_GUILD_ID
     "DISCORD_TOKEN_PARAMETER" : module.discord_token.name
-    "SQS_QUEUE_ARN" : aws_sqs_queue.discord_bot_queue.arn
+    "SQS_QUEUE_URL" : aws_sqs_queue.discord_bot_queue.url
   }
 
   create_permission    = true
