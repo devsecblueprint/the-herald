@@ -48,8 +48,8 @@ module "youtube_channel_subscriber" {
   }
 
   create_event_rule              = true
-  event_rule_name                = "${var.resource_prefix}-lambda-event-rule"
-  event_target_id                = "${var.resource_prefix}-lambda-event-target"
+  event_rule_name                = "${var.resource_prefix}-youtube-subscriber-event-rule"
+  event_target_id                = "${var.resource_prefix}-youtube-subscriber-event-target"
   event_rule_schedule_expression = "rate(1 day)"
 
   create_permission    = true
@@ -132,16 +132,30 @@ module "discord_bot" {
   role_arn            = module.discord_bot_exec_role.arn
 
   create_event_rule              = true
-  event_rule_name                = "${var.resource_prefix}-lambda-event-rule"
-  event_target_id                = "${var.resource_prefix}-lambda-event-target"
+  event_rule_name                = "${var.resource_prefix}-event-rule"
+  event_target_id                = "${var.resource_prefix}-event-target"
   event_rule_schedule_expression = "rate(1 day)"
 
   environment_variables = {
     "DISCORD_GUILD_ID" : var.DISCORD_GUILD_ID
     "DISCORD_TOKEN_PARAMETER" : module.discord_token.name
+    "SQS_QUEUE_ARN" : aws_sqs_queue.discord_bot_queue.arn
   }
 
   create_permission    = true
   permission_action    = "lambda:InvokeFunction"
   permission_principal = "events.amazonaws.com"
+}
+
+# Resources - SQS
+resource "aws_sqs_queue" "discord_bot_queue" {
+  name = "${var.resource_prefix}-queue.fifo"
+
+  visibility_timeout_seconds = 30
+  message_retention_seconds  = 86400 # 1 day
+  delay_seconds              = 0
+  receive_wait_time_seconds  = 10
+
+  fifo_queue                  = true
+  content_based_deduplication = true
 }
