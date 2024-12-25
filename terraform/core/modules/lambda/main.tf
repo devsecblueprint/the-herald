@@ -12,6 +12,13 @@ resource "aws_lambda_function" "this" {
   }
 }
 
+resource "aws_lambda_function_url" "this" {
+  count = var.create_function_url ? 1 : 0
+
+  function_name      = aws_lambda_function.this.function_name
+  authorization_type = var.function_url_authorization_type
+}
+
 # Lambda Permission
 resource "aws_lambda_permission" "this" {
   count = var.create_permission ? 1 : 0

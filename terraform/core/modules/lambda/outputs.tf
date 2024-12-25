@@ -8,7 +8,7 @@ output "name" {
   description = "The name of the Lambda function."
 }
 
-output "invoke_arn" {
-  value       = aws_lambda_function.this.invoke_arn
-  description = "The ARN to be used for invoking Lambda function from API Gateway."
+output "function_url" {
+  value       = var.create_function_url ? aws_lambda_function_url.this[0].function_url : null
+  description = "The URL of the Lambda function."
 }

@@ -117,3 +117,16 @@ variable "ecr_repository_name" {
   description = "Name of the ECR repository"
   type        = string
 }
+
+# Lambda Function URL Variables
+variable "create_function_url" {
+  description = "Whether to create a Lambda function URL"
+  type        = bool
+  default     = false
+}
+
+variable "function_url_authorization_type" {
+  description = "Authorization type for the Lambda function URL"
+  type        = string
+  default     = ""
+}

@@ -32,7 +32,27 @@ module "youtube_channel_subscriber_exec_role" {
     "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
     "arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess"
   ]
-  inline_policy_enabled = false
+  inline_policy_enabled = true
+  inline_policy = jsonencode({
+    "Version" : "2012-10-17"
+    "Statement" : [
+      {
+        "Action" : [
+          "sqs:SendMessage"
+        ]
+        "Effect" : "Allow"
+        "Resource" : aws_sqs_queue.discord_bot_queue.arn
+      },
+      {
+        "Action" : [
+          "lambda:GetFunction",
+          "lambda:GetFunctionUrlConfig"
+        ]
+        "Effect" : "Allow"
+        "Resource" : "arn:aws:lambda:*:${local.account_id}:function:${var.resource_prefix}-youtube-subscriber"
+      }
+    ]
+  })
 }
 
 module "youtube_channel_subscriber" {
@@ -42,10 +62,6 @@ module "youtube_channel_subscriber" {
   ecr_repository_name = "${var.resource_prefix}-youtube-subscriber-image"
   timeout             = 120 # 2 minutes
   role_arn            = module.youtube_channel_subscriber_exec_role.arn
-  environment_variables = {
-    "YOUTUBE_CHANNEL_HANDLES" : join(",", local.YOUTUBE_CHANNEL_HANDLES)
-    "CALLBACK_URL" : module.youtube_channel_subscriber_api_gw.api_gateway_url
-  }
 
   create_event_rule              = true
   event_rule_name                = "${var.resource_prefix}-youtube-subscriber-event-rule"
@@ -55,15 +71,14 @@ module "youtube_channel_subscriber" {
   create_permission    = true
   permission_action    = "lambda:InvokeFunction"
   permission_principal = "events.amazonaws.com"
-}
 
-module "youtube_channel_subscriber_api_gw" {
-  source = "./modules/api_gateway"
+  create_function_url             = true
+  function_url_authorization_type = "NONE"
 
-  api_name                   = "${var.resource_prefix}-youtube-subscriber-api"
-  api_description            = "Youtube Subscriber API"
-  lambda_function_name       = module.discord_bot.name
-  lambda_function_invoke_arn = module.discord_bot.invoke_arn
+  environment_variables = {
+    "YOUTUBE_CHANNEL_HANDLES" : join(",", local.YOUTUBE_CHANNEL_HANDLES)
+    "SQS_QUEUE_URL" : aws_sqs_queue.discord_bot_queue.url
+  }
 }
 
 # Security Newsletter Creation
@@ -87,6 +102,7 @@ module "security_newsletter_exec_role" {
     "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
     "arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess"
   ]
+
   inline_policy_enabled = true
   inline_policy = jsonencode({
     "Version" : "2012-10-17"

@@ -6,10 +6,11 @@ from os import environ
 import re
 import logging
 import requests
+import boto3
 
 HUB_ENDPOINT = "https://pubsubhubbub.appspot.com/subscribe"
-CALLBACK_URL = environ.get("CALLBACK_URL")
 CHANNEL_HANDLES = environ.get("YOUTUBE_CHANNEL_HANDLES")
+LAMBDA_FUNCTION_NAME = environ.get("AWS_LAMBDA_FUNCTION_NAME")
 
 # Logging Configuration
 logging.getLogger().setLevel(logging.INFO)
@@ -19,11 +20,14 @@ logging.getLogger().setLevel(logging.INFO)
 def main(event, _):
     # pylint: disable=broad-exception-raised
     """
-    Main function for subscribing to PubSubHubBub
+    Main function for subscribing to PubSubHubBub or sending new video
+    to SQS Topic for Processing.
     """
-
     logging.info("Endpoint: %s", HUB_ENDPOINT)
     logging.info("Event Trigger: %s", event)
+
+    callback_url = get_lambda_function_url()
+    logging.info("Callback URL: %s", callback_url)
 
     failed_channels = []
     for channel_handle in CHANNEL_HANDLES.split(","):
@@ -37,7 +41,7 @@ def main(event, _):
         params = {
             "hub.mode": "subscribe",
             "hub.topic": f"https://www.youtube.com/xml/feeds/videos.xml?channel_id={channel_id}",
-            "hub.callback": CALLBACK_URL,
+            "hub.callback": callback_url,
             "hub.verify": "async",  # Asynchronous verification method
             "hub.lease_seconds": "86400",  # Lease for 1 day
         }
@@ -53,6 +57,15 @@ def main(event, _):
             failed_channels.append(channel_handle)
 
     return {"failedChannelRequests": failed_channels}
+
+
+def get_lambda_function_url():
+    """
+    Gets the URL of the Lambda function
+    """
+    lambda_client = boto3.client("lambda")
+    response = lambda_client.get_function_url_config(FunctionName=LAMBDA_FUNCTION_NAME)
+    return response["FunctionUrl"]
 
 
 def scrape_channel_id_from_handle(handle: str) -> str:
