@@ -5,8 +5,11 @@ Main handler of the Discord Bot
 import os
 import json
 import logging
+from xml.parsers.expat import ExpatError
+
 import requests
 import boto3
+import xmltodict
 
 TOKEN_PARAMETER = os.environ["DISCORD_TOKEN_PARAMETER"]
 GUILD_ID = os.environ["DISCORD_GUILD_ID"]
@@ -14,23 +17,46 @@ QUEUE_URL = os.environ["SQS_QUEUE_URL"]
 
 CHANNEL_ID = "1320604883484672102"  # security-news-test
 
+# Logging Configuration
+logging.getLogger().setLevel(logging.INFO)
+
 
 def main(event, _):
     """
     This is the main entry point for the Lambda function.
     It takes in the event and context as arguments, and returns the response.
     """
-    print("Event: %s", event)
+    logging.info("Event: %s", event)
+
+    if event.get("queryStringParameters"):
+        logging.info("Verifying subscription to PubSubHubbub...")
+        return event["queryStringParameters"]["hub.challenge"]
+
+    # Assume it is a YouTube video
+    if event.get("body"):
+        if "xml" in event.get("body"):
+            logging.info("New YouTube video detected! Parsing XML body")
+            payload = parse_youtube_xml(event.get("body"))
+            logging.info("Payload: %s", payload)
+            send_message_to_channel(
+                CHANNEL_ID,
+                f"New Video Detected! Here is the link: {payload['videoUrl']}",
+            )
+            return "Video message has been published or posted.", 200
+
     token = get_discord_token()
 
     url = f"https://discord.com/api/v10/guilds/{GUILD_ID}/channels"
     headers = {"Authorization": f"Bot {token}", "Content-Type": "application/json"}
     response = requests.get(url, headers=headers, timeout=10)
-    logging.info("Response: %s", response.text)
 
+    logging.info("Response: %s", response.text)
     sqs_message = process_messages()
 
-    return {"statusCode": 200, "body": f"Processing has been completed: {sqs_message}"}
+    return {
+        "statusCode": 200,
+        "body": f"Processing has been completed: {sqs_message}",
+    }
 
 
 def send_message_to_channel(channel_id, message):
@@ -45,6 +71,35 @@ def send_message_to_channel(channel_id, message):
 
     response = requests.post(url, headers=headers, data=json.dumps(data), timeout=10)
     response.raise_for_status()
+
+
+def parse_youtube_xml(xml_body: str):
+    """
+    Parses the YouTube XML body
+    """
+    logging.info("Parsing YouTube XML body")
+    logging.info("XML Body: %s", xml_body)
+
+    try:
+        # Parse the XML from the POST request into a dict.
+        xml_dict = xmltodict.parse(xml_body)
+
+        # Parse out the video URL & the title
+        video_url = xml_dict["feed"]["entry"]["link"]["@href"]
+        video_title = xml_dict["feed"]["entry"]["title"]
+
+        # Trigger Step Function by passing in the video title and URL
+        payload = {
+            "videoName": video_title,
+            "videoUrl": video_url,
+            "contentType": "video",
+        }
+
+        return payload
+
+    except (ExpatError, LookupError):
+        # request.data contains malformed XML or no XML at all, return FORBIDDEN.
+        return "XML data cannot be processed.", 500
 
 
 def process_messages():

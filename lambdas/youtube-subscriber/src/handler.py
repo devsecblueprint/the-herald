@@ -5,12 +5,13 @@ Main handler
 from os import environ
 import re
 import logging
+
 import requests
 import boto3
 
 HUB_ENDPOINT = "https://pubsubhubbub.appspot.com/subscribe"
 CHANNEL_HANDLES = environ.get("YOUTUBE_CHANNEL_HANDLES")
-LAMBDA_FUNCTION_NAME = environ.get("AWS_LAMBDA_FUNCTION_NAME")
+LAMBDA_FUNCTION_NAME = environ.get("DISCORD_BOT_LAMBDA_NAME")
 
 # Logging Configuration
 logging.getLogger().setLevel(logging.INFO)
@@ -26,13 +27,7 @@ def main(event, _):
     if event.get("source") == "aws.events":
         return subscribe_to_channels(event)
 
-    if event.get("queryStringParameters"):
-        logging.info("Verifying subscription to PubSubHubbub...")
-        return event["queryStringParameters"]["hub.challenge"]
-
-    # Assume it is a YouTube video
-    print(event)
-    return {"statusCode": 200, "body": "OK"}
+    return "Hello World", 200
 
 
 def subscribe_to_channels(event):

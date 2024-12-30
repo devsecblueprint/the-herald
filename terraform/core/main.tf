@@ -48,7 +48,7 @@ module "youtube_channel_subscriber_exec_role" {
           "lambda:GetFunctionUrlConfig"
         ]
         "Effect" : "Allow"
-        "Resource" : "arn:aws:lambda:*:${local.account_id}:function:${var.resource_prefix}-youtube-subscriber"
+        "Resource" : "arn:aws:lambda:*:${local.account_id}:function:${var.resource_prefix}"
       }
     ]
   })
@@ -70,9 +70,6 @@ module "youtube_channel_subscriber" {
   create_permission    = true
   permission_action    = "lambda:InvokeFunction"
   permission_principal = "events.amazonaws.com"
-
-  create_function_url             = true
-  function_url_authorization_type = "NONE"
 
   environment_variables = {
     "YOUTUBE_CHANNEL_HANDLES" : join(",", local.YOUTUBE_CHANNEL_HANDLES)
@@ -191,6 +188,9 @@ module "discord_bot" {
   create_permission    = true
   permission_action    = "lambda:InvokeFunction"
   permission_principal = "events.amazonaws.com"
+
+  create_function_url             = true
+  function_url_authorization_type = "NONE"
 }
 
 # Resources - SQS
