@@ -9,12 +9,12 @@ ENV PATH="/app/.venv/bin:$PATH"
 COPY requirements.txt .
 RUN pip install \
     --no-cache-dir \
-    awslambdaric \
     -r requirements.txt
 
 # Create entry script in build stage
 RUN echo '#!/bin/sh\nexec python -m awslambdaric "$@"' > /app/entry.sh && \
     chmod +x /app/entry.sh
+RUN ls -la /app/.venv/bin
 
 FROM cgr.dev/chainguard/python:latest
 
