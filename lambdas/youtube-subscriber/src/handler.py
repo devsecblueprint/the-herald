@@ -23,6 +23,22 @@ def main(event, _):
     Main function for subscribing to PubSubHubBub or sending new video
     to SQS Topic for Processing.
     """
+    if event.get("source") == "aws.events":
+        return subscribe_to_channels(event)
+
+    if event.get("queryStringParameters"):
+        logging.info("Verifying subscription to PubSubHubbub...")
+        return event["queryStringParameters"]["hub.challenge"]
+
+    # Assume it is a YouTube video
+    print(event)
+    return {"statusCode": 200, "body": "OK"}
+
+
+def subscribe_to_channels(event):
+    """
+    Subscribes to YouTube channels
+    """
     logging.info("Endpoint: %s", HUB_ENDPOINT)
     logging.info("Event Trigger: %s", event)
 
@@ -47,6 +63,7 @@ def main(event, _):
         }
 
         # Make a POST request to subscribe to the topic
+        # Set headers to content type plaintext
         response = requests.post(HUB_ENDPOINT, data=params, timeout=5)
 
         # Check the response

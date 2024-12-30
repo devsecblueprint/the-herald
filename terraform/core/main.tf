@@ -8,7 +8,6 @@ module "discord_token" {
   description = "Discord Token"
   value       = var.DISCORD_TOKEN
   type        = "SecureString"
-
 }
 
 # Youtube Channel Subscriber
@@ -78,6 +77,7 @@ module "youtube_channel_subscriber" {
   environment_variables = {
     "YOUTUBE_CHANNEL_HANDLES" : join(",", local.YOUTUBE_CHANNEL_HANDLES)
     "SQS_QUEUE_URL" : aws_sqs_queue.discord_bot_queue.url
+    "DISCORD_BOT_LAMBDA_NAME" : module.discord_bot.name
   }
 }
 

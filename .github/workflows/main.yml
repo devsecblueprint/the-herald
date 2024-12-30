@@ -17,7 +17,7 @@ jobs:
       contents: read
     secrets: inherit
     with:
-      tf_workspace: "dsb-discord-bot-repositories"
+      tf_workspace: "discord-bot-repositories"
       config_directory: "./terraform/repositories"
   publish-images:
     uses: ./.github/workflows/docker-publish.yml
@@ -31,5 +31,5 @@ jobs:
       contents: read
     secrets: inherit
     with:
-      tf_workspace: "dsb-discord-bot"
+      tf_workspace: "discord-bot"
       config_directory: "./terraform/core"
