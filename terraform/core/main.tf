@@ -126,7 +126,7 @@ module "security_newsletter" {
   create_event_rule              = true
   event_rule_name                = "${var.resource_prefix}-security-newsletter-event-rule"
   event_target_id                = "${var.resource_prefix}-security-newsletter-event-target"
-  event_rule_schedule_expression = "rate(1 day)"
+  event_rule_schedule_expression = "rate(1 hour)"
 
   create_permission    = true
   permission_action    = "lambda:InvokeFunction"
@@ -186,7 +186,7 @@ module "discord_bot" {
   create_event_rule              = true
   event_rule_name                = "${var.resource_prefix}-event-rule"
   event_target_id                = "${var.resource_prefix}-event-target"
-  event_rule_schedule_expression = "rate(1 day)"
+  event_rule_schedule_expression = "rate(1 hour)"
 
   environment_variables = {
     "DISCORD_GUILD_ID" : var.DISCORD_GUILD_ID
