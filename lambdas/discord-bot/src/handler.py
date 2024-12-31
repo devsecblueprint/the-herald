@@ -55,11 +55,11 @@ def main(event, _):
 
     # Process newsletters in the Queue
     if event.get("source") == "aws.events":
-        sqs_message = process_messages()
+        processed_messages = process_all_queue_messages()
 
         return {
             "statusCode": 200,
-            "body": f"Processing has been completed: {sqs_message}",
+            "body": f"Processing has been completed: {processed_messages}",
         }
 
     return {
@@ -133,34 +133,58 @@ def parse_youtube_xml(xml_body: str):
         return "XML data cannot be processed.", 500
 
 
-def process_messages():
+def process_all_queue_messages():
     """
-    Process messages for the SQS Queue
-    in a systematic way.
+    Processes all messages in the SQS queue.
     """
+    messages_processed = 0
     sqs_client = boto3.client("sqs")
-    response_receive = sqs_client.receive_message(
-        QueueUrl=QUEUE_URL,
-        MaxNumberOfMessages=1,  # how many messages to pull at once
-        WaitTimeSeconds=5,  # enable short polling (up to 20 is possible for long polling)
-    )
 
-    messages = response_receive.get("Messages", [])
-    if not messages:
-        print("No messages found in the queue.")
-        return None
+    while True:
+        try:
+            # Receive messages from the queue
+            response = sqs_client.receive_message(
+                QueueUrl=QUEUE_URL,
+                MaxNumberOfMessages=10,  # Maximum allowed by SQS
+                WaitTimeSeconds=5,
+            )
 
-    # We have at least one message, process the first
-    message = messages[0]
-    receipt_handle = message["ReceiptHandle"]
-    print(f"Received message: {message['Body']}")
-    print(f"ReceiptHandle: {receipt_handle}")
+            # Check if we got any messages
+            messages = response.get("Messages", [])
+            if not messages:
+                logging.info(
+                    "Queue is empty. Total messages processed: %s", messages_processed
+                )
+                break
 
-    # 3. Delete the message from the queue
-    sqs_client.delete_message(QueueUrl=QUEUE_URL, ReceiptHandle=receipt_handle)
-    print("Message deleted from the queue.")
+            # Process each message in the batch
+            for message in messages:
+                try:
+                    # Process the message
+                    send_message_to_channel(
+                        "security-news-test",
+                        message["Body"],
+                    )
 
-    return message["Body"]
+                    # Delete the message after successful processing
+                    sqs_client.delete_message(
+                        QueueUrl=QUEUE_URL, ReceiptHandle=message["ReceiptHandle"]
+                    )
+                    messages_processed += 1
+                    logging.info(
+                        "Message processed and deleted. Receipt Handle: %s",
+                        message["ReceiptHandle"],
+                    )
+
+                except Exception as e:
+                    logging.error("Error processing message: %s", str(e))
+                    continue
+
+        except Exception as e:
+            logging.error("Error receiving messages from queue: %s", str(e))
+            break
+
+    return messages_processed
 
 
 def get_discord_token():

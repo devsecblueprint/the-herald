@@ -58,7 +58,7 @@ def fetch_hacker_news_rss(feed_url="https://feeds.feedburner.com/TheHackersNews"
     feed = feedparser.parse(feed_url)
 
     if feed.bozo:
-        raise Exception(f"Error parsing feed: {feed.bozo_exception}")
+        raise ValueError(f"Error parsing feed: {feed.bozo_exception}")
 
     # Extract articles
     articles = []
