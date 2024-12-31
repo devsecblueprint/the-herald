@@ -29,8 +29,13 @@ def main(event, _):
     logging.info("Event: %s", event)
 
     if event.get("queryStringParameters"):
-        logging.info("Verifying subscription to PubSubHubbub...")
-        return event["queryStringParameters"]["hub.challenge"], 200
+        hub_challenge = event["queryStringParameters"].get("hub.challenge")
+        logging.info("Verifying subscription to PubSubHubbub: %s", hub_challenge)
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "text/plain"},
+            "body": hub_challenge,  # Respond with the exact hub.challenge value
+        }
 
     # Assume it is a YouTube video
     if event.get("body"):
@@ -42,7 +47,11 @@ def main(event, _):
                 CHANNEL_ID,
                 f"New Video Detected! Here is the link: {payload['videoUrl']}",
             )
-            return "Video message has been published or posted.", 200
+            return {
+                "statusCode": 200,
+                "headers": {"Content-Type": "text/plain"},
+                "body": "Video message has been published or posted.",
+            }
 
     token = get_discord_token()
 
