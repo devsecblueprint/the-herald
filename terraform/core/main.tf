@@ -123,6 +123,15 @@ module "security_newsletter" {
   timeout             = 10
   role_arn            = module.security_newsletter_exec_role.arn
 
+  create_event_rule              = true
+  event_rule_name                = "${var.resource_prefix}-security-newsletter-event-rule"
+  event_target_id                = "${var.resource_prefix}-security-newsletter-event-target"
+  event_rule_schedule_expression = "rate(1 day)"
+
+  create_permission    = true
+  permission_action    = "lambda:InvokeFunction"
+  permission_principal = "events.amazonaws.com"
+
   environment_variables = {
     "SQS_QUEUE_URL" : aws_sqs_queue.discord_bot_queue.url
   }
