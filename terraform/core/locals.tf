@@ -1,8 +1,7 @@
 locals {
   YOUTUBE_CHANNEL_HANDLES = [
-    #"@damienjburks",
-    #"@DayCyberwox",
-    "@damienburks9802"
+    "@damienjburks",
+    # "@damienburks9802" - only enable when testing
   ]
   account_id = data.aws_caller_identity.current.account_id
 }

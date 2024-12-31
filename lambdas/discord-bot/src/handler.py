@@ -52,6 +52,8 @@ def main(event, _):
                 "headers": {"Content-Type": "text/plain"},
                 "body": "Video message has been published or posted.",
             }
+
+    # Process newsletters in the Queue
     if event.get("source") == "aws.events":
         sqs_message = process_messages()
 
