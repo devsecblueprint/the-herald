@@ -30,7 +30,7 @@ def main(event, _):
 
     if event.get("queryStringParameters"):
         logging.info("Verifying subscription to PubSubHubbub...")
-        return event["queryStringParameters"]["hub.challenge"]
+        return event["queryStringParameters"]["hub.challenge"], 200
 
     # Assume it is a YouTube video
     if event.get("body"):
