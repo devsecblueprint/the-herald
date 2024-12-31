@@ -15,8 +15,6 @@ TOKEN_PARAMETER = os.environ["DISCORD_TOKEN_PARAMETER"]
 GUILD_ID = os.environ["DISCORD_GUILD_ID"]
 QUEUE_URL = os.environ["SQS_QUEUE_URL"]
 
-CHANNEL_ID = "1320604883484672102"  # security-news-test
-
 # Logging Configuration
 logging.getLogger().setLevel(logging.INFO)
 
@@ -43,36 +41,39 @@ def main(event, _):
             logging.info("New YouTube video detected! Parsing XML body")
             payload = parse_youtube_xml(event.get("body"))
             logging.info("Payload: %s", payload)
+
             send_message_to_channel(
-                CHANNEL_ID,
+                "content-corner-test",
                 f"New Video Detected! Here is the link: {payload['videoUrl']}",
             )
+
             return {
                 "statusCode": 200,
                 "headers": {"Content-Type": "text/plain"},
                 "body": "Video message has been published or posted.",
             }
+    if event.get("source") == "aws.events":
+        sqs_message = process_messages()
 
-    token = get_discord_token()
-
-    url = f"https://discord.com/api/v10/guilds/{GUILD_ID}/channels"
-    headers = {"Authorization": f"Bot {token}", "Content-Type": "application/json"}
-    response = requests.get(url, headers=headers, timeout=10)
-
-    logging.info("Response: %s", response.text)
-    sqs_message = process_messages()
+        return {
+            "statusCode": 200,
+            "body": f"Processing has been completed: {sqs_message}",
+        }
 
     return {
         "statusCode": 200,
-        "body": f"Processing has been completed: {sqs_message}",
+        "body": "Hello World",
     }
 
 
-def send_message_to_channel(channel_id, message):
+def send_message_to_channel(channel_name, message):
     """
     Sends a message to a specific Discord channel.
     """
     token = get_discord_token()
+    channel_id = get_channel_id(channel_name)
+
+    logging.info("Channel ID: %s", channel_id)
     url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
 
     headers = {"Authorization": f"Bot {token}", "Content-Type": "application/json"}
@@ -80,6 +81,25 @@ def send_message_to_channel(channel_id, message):
 
     response = requests.post(url, headers=headers, data=json.dumps(data), timeout=10)
     response.raise_for_status()
+
+
+def get_channel_id(channel_name):
+    """
+    Retrieves the channel ID for a given channel name.
+    """
+    token = get_discord_token()
+    url = f"https://discord.com/api/v10/guilds/{GUILD_ID}/channels"
+    headers = {"Authorization": f"Bot {token}", "Content-Type": "application/json"}
+
+    response = requests.get(url, headers=headers, timeout=10)
+    response.raise_for_status()
+
+    channels = response.json()
+    for channel in channels:
+        if channel["name"] == channel_name:
+            return channel["id"]
+
+    raise ValueError(f"Channel '{channel_name}' not found.")
 
 
 def parse_youtube_xml(xml_body: str):
