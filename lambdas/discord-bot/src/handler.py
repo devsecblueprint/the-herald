@@ -3,6 +3,7 @@ Main handler of the Discord Bot
 """
 
 import os
+import time
 import json
 import logging
 from xml.parsers.expat import ExpatError
@@ -42,8 +43,9 @@ def main(event, _):
             payload = parse_youtube_xml(event.get("body"))
             logging.info("Payload: %s", payload)
 
+            channel_id = get_channel_id("content-corner-test")
             send_message_to_channel(
-                "content-corner-test",
+                channel_id,
                 f"New Video Detected! Here is the link: {payload['videoUrl']}",
             )
 
@@ -55,7 +57,8 @@ def main(event, _):
 
     # Process newsletters in the Queue
     if event.get("source") == "aws.events":
-        processed_messages = process_all_queue_messages()
+        channel_id = get_channel_id("security-news-test")
+        processed_messages = process_all_queue_messages(channel_id)
 
         return {
             "statusCode": 200,
@@ -68,12 +71,11 @@ def main(event, _):
     }
 
 
-def send_message_to_channel(channel_name, message):
+def send_message_to_channel(channel_id, message):
     """
     Sends a message to a specific Discord channel.
     """
     token = get_discord_token()
-    channel_id = get_channel_id(channel_name)
 
     logging.info("Channel ID: %s", channel_id)
     url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
@@ -133,7 +135,7 @@ def parse_youtube_xml(xml_body: str):
         return "XML data cannot be processed.", 500
 
 
-def process_all_queue_messages():
+def process_all_queue_messages(channel_id: str):
     """
     Processes all messages in the SQS queue.
     """
@@ -157,12 +159,21 @@ def process_all_queue_messages():
                 )
                 break
 
-            # Process each message in the batch
-            for message in messages:
+            new_messages = check_messages_in_discord(
+                [message["Body"] for message in messages], channel_id
+            )
+
+            if new_messages:
+                logging.info("New messages found: %s", new_messages)
+            else:
+                logging.info("No new messages found.")
+                break
+
+            for message in new_messages:
                 try:
                     # Process the message
                     send_message_to_channel(
-                        "security-news-test",
+                        channel_id,
                         message["Body"],
                     )
 
@@ -175,6 +186,7 @@ def process_all_queue_messages():
                         "Message processed and deleted. Receipt Handle: %s",
                         message["ReceiptHandle"],
                     )
+                    time.sleep(3)  # Small delay to prevent rate limiting
 
                 except Exception as e:
                     logging.error("Error processing message: %s", str(e))
@@ -187,12 +199,41 @@ def process_all_queue_messages():
     return messages_processed
 
 
+def check_messages_in_discord(messages: list, channel_id: str):
+    """
+    Checks if a message exists in the discord channel and returns messages that
+    are not in the discord channel.
+    """
+    token = get_discord_token()
+    url = f"https://discord.com/api/v10/channels/{channel_id}/messages?limit=50"
+    headers = {"Authorization": f"Bot {token}", "Content-Type": "application/json"}
+    new_messages = []
+
+    response = requests.get(url, headers=headers, timeout=10)
+    response.raise_for_status()
+
+    channel_messages = response.json()
+    for channel_message in channel_messages:
+        if channel_message["content"] not in messages:
+            logging.info("This message does not exist: %s", channel_message["content"])
+            new_messages.append(channel_message["content"])
+
+    return new_messages
+
+
 def get_discord_token():
     """
     Retrieves the Discord token from AWS Secrets Manager.
     """
     client = boto3.client("ssm")
-
     response = client.get_parameter(Name=TOKEN_PARAMETER, WithDecryption=True)
-
     return response["Parameter"]["Value"]
+
+
+if __name__ == "__main__":
+    check_messages_in_discord(
+        [
+            "https://thehackernews.com/2025/01/new-doubleclickjacking-exploit-bypasses.html"
+        ],
+        "1320604883484672102",
+    )
