@@ -60,9 +60,11 @@ def main(event, _):
         channel_id = get_channel_id("security-news-test")
         processed_messages = process_all_queue_messages(channel_id)
 
+        logging.info("Total # of Processed Messages: %s", processed_messages)
+
         return {
             "statusCode": 200,
-            "body": f"Processing has been completed: {processed_messages}",
+            "body": "Processing has been completed!",
         }
 
     return {
@@ -181,11 +183,13 @@ def process_all_queue_messages(channel_id: str):
                     sqs_client.delete_message(
                         QueueUrl=QUEUE_URL, ReceiptHandle=message["ReceiptHandle"]
                     )
+
                     messages_processed += 1
                     logging.info(
                         "Message processed and deleted. Receipt Handle: %s",
                         message["ReceiptHandle"],
                     )
+
                     time.sleep(3)  # Small delay to prevent rate limiting
 
                 except Exception as e:
