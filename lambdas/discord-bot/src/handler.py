@@ -174,7 +174,7 @@ def process_all_queue_messages(channel_id: str):
                     # Process the message
                     send_message_to_channel(
                         channel_id,
-                        message["Body"],
+                        message,
                     )
 
                     # Delete the message after successful processing
@@ -216,6 +216,8 @@ def check_messages_in_discord(messages: list, channel_id: str):
     message_contents = [
         channel_message["content"] for channel_message in channel_messages
     ]
+    logging.info("Message contents: %s", message_contents)
+
     for message in messages:
         if message not in message_contents:
             logging.info("This message does not exist: %s", message)

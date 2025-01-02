@@ -14,6 +14,9 @@ import pytz
 QUEUE_URL = os.environ["SQS_QUEUE_URL"]
 QUEUE_GROUP = "newsletter"
 
+# Logging Configuration
+logging.getLogger().setLevel(logging.INFO)
+
 
 def main(event, _):
     """
