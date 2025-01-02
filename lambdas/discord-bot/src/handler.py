@@ -213,10 +213,13 @@ def check_messages_in_discord(messages: list, channel_id: str):
     response.raise_for_status()
 
     channel_messages = response.json()
-    for channel_message in channel_messages:
-        if channel_message["content"] not in messages:
-            logging.info("This message does not exist: %s", channel_message["content"])
-            new_messages.append(channel_message["content"])
+    message_contents = [
+        channel_message["content"] for channel_message in channel_messages
+    ]
+    for message in messages:
+        if message not in message_contents:
+            logging.info("This message does not exist: %s", message)
+            new_messages.append(message)
 
     return new_messages
 
