@@ -43,10 +43,11 @@ def main(event, _):
             payload = parse_youtube_xml(event.get("body"))
             logging.info("Payload: %s", payload)
 
-            channel_id = get_channel_id("content-corner-test")
+            channel_id = get_channel_id("📹-content-corner")
             send_message_to_channel(
                 channel_id,
-                f"New Video Detected! Here is the link: {payload['videoUrl']}",
+                f"@everyone - Check out my latest video: \
+                    {payload['videoName']} {payload['videoUrl']}",
             )
 
             return {
@@ -57,7 +58,7 @@ def main(event, _):
 
     # Process newsletters in the Queue
     if event.get("source") == "aws.events":
-        channel_id = get_channel_id("security-news-test")
+        channel_id = get_channel_id("📰-security-news")
         processed_messages = process_all_queue_messages(channel_id)
 
         logging.info("Total # of Processed Messages: %s", processed_messages)
@@ -163,7 +164,6 @@ def process_all_queue_messages(channel_id: str):
 
             # Delete messages before processing
             for message in messages:
-                # Delete the message after successful processing
                 sqs_client.delete_message(
                     QueueUrl=QUEUE_URL, ReceiptHandle=message["ReceiptHandle"]
                 )
