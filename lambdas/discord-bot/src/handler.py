@@ -161,6 +161,18 @@ def process_all_queue_messages(channel_id: str):
                 )
                 break
 
+            # Delete messages before processing
+            for message in messages:
+                # Delete the message after successful processing
+                sqs_client.delete_message(
+                    QueueUrl=QUEUE_URL, ReceiptHandle=message["ReceiptHandle"]
+                )
+                messages_processed += 1
+                logging.info(
+                    "Message processed and deleted. Receipt Handle: %s",
+                    message["ReceiptHandle"],
+                )
+
             new_messages = check_messages_in_discord(
                 [message["Body"] for message in messages], channel_id
             )
@@ -178,18 +190,6 @@ def process_all_queue_messages(channel_id: str):
                         channel_id,
                         message,
                     )
-
-                    # Delete the message after successful processing
-                    sqs_client.delete_message(
-                        QueueUrl=QUEUE_URL, ReceiptHandle=message["ReceiptHandle"]
-                    )
-
-                    messages_processed += 1
-                    logging.info(
-                        "Message processed and deleted. Receipt Handle: %s",
-                        message["ReceiptHandle"],
-                    )
-
                     time.sleep(3)  # Small delay to prevent rate limiting
 
                 except Exception as e:
