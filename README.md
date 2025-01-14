@@ -23,7 +23,7 @@ The Herald is the ever-watchful and enigmatic bot, designed to guide, inform, an
 
 ## Want To Contribute?
 
-If you'd like to contribute to this project, you'll want to check out the Contributing Documentation.
+If you'd like to contribute to this project, you'll want to check out the [Contributing Documentation](./CONTRIBUTING.md).
 
 ## Contributors
 

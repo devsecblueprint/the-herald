@@ -78,6 +78,7 @@ You may also need:
      ```
 
 5. **Lint Terraform files:**
+
    - Format Terraform files:
 
      ```bash
@@ -99,9 +100,10 @@ You may also need:
 
    - Format Python code using **Black**.
    - Lint Python code using **Pylint** and resolve any issues.
+   - Format Terraform Code
 
 3. **Test your changes:**
-   Add tests for any new functionality or modifications to existing features.
+   Make sure they work locally and be ready to provide proof.
 
 4. **Document your changes:**
    Update README or related documentation if necessary.
