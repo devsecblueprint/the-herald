@@ -21,7 +21,9 @@ The Herald is the ever-watchful and enigmatic bot, designed to guide, inform, an
 
 ![Architecture Diagram](./docs/imgs/architecture.drawio.svg)
 
-### Architecture Breakdown
+## Want To Contribute?
+
+If you'd like to contribute to this project, you'll want to check out the Contributing Documentation.
 
 ## Contributors
 
