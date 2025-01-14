@@ -55,7 +55,7 @@ You may also need:
 
 3. **Set up Terraform Cloud:**
 
-   - Update the organization name in the Terraform configurations (`terraform.tfvars`) to match your local or test environment.
+   - Update the organization name in the Terraform configurations (`provider.tf`) to match your local or test environment.
    - Initialize and validate Terraform:
 
      ```bash
