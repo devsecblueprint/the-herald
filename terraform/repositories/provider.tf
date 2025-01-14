@@ -1,7 +1,8 @@
 terraform {
   cloud {
+    organization = "DSB"
     workspaces {
-      name = "dsb-discord-bot-repositories"
+      name = "discord-bot-repositories"
     }
   }
 }

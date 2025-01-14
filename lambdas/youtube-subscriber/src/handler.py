@@ -5,12 +5,13 @@ Main handler
 from os import environ
 import re
 import logging
+
 import requests
 import boto3
 
 HUB_ENDPOINT = "https://pubsubhubbub.appspot.com/subscribe"
 CHANNEL_HANDLES = environ.get("YOUTUBE_CHANNEL_HANDLES")
-LAMBDA_FUNCTION_NAME = environ.get("AWS_LAMBDA_FUNCTION_NAME")
+LAMBDA_FUNCTION_NAME = environ.get("DISCORD_BOT_LAMBDA_NAME")
 
 # Logging Configuration
 logging.getLogger().setLevel(logging.INFO)
@@ -22,6 +23,16 @@ def main(event, _):
     """
     Main function for subscribing to PubSubHubBub or sending new video
     to SQS Topic for Processing.
+    """
+    if event.get("source") == "aws.events":
+        return subscribe_to_channels(event)
+
+    return "Hello World", 200
+
+
+def subscribe_to_channels(event):
+    """
+    Subscribes to YouTube channels
     """
     logging.info("Endpoint: %s", HUB_ENDPOINT)
     logging.info("Event Trigger: %s", event)
@@ -47,6 +58,7 @@ def main(event, _):
         }
 
         # Make a POST request to subscribe to the topic
+        # Set headers to content type plaintext
         response = requests.post(HUB_ENDPOINT, data=params, timeout=5)
 
         # Check the response

@@ -8,7 +8,6 @@ module "discord_token" {
   description = "Discord Token"
   value       = var.DISCORD_TOKEN
   type        = "SecureString"
-
 }
 
 # Youtube Channel Subscriber
@@ -49,7 +48,7 @@ module "youtube_channel_subscriber_exec_role" {
           "lambda:GetFunctionUrlConfig"
         ]
         "Effect" : "Allow"
-        "Resource" : "arn:aws:lambda:*:${local.account_id}:function:${var.resource_prefix}-youtube-subscriber"
+        "Resource" : "arn:aws:lambda:*:${local.account_id}:function:${var.resource_prefix}"
       }
     ]
   })
@@ -72,12 +71,10 @@ module "youtube_channel_subscriber" {
   permission_action    = "lambda:InvokeFunction"
   permission_principal = "events.amazonaws.com"
 
-  create_function_url             = true
-  function_url_authorization_type = "NONE"
-
   environment_variables = {
     "YOUTUBE_CHANNEL_HANDLES" : join(",", local.YOUTUBE_CHANNEL_HANDLES)
     "SQS_QUEUE_URL" : aws_sqs_queue.discord_bot_queue.url
+    "DISCORD_BOT_LAMBDA_NAME" : module.discord_bot.name
   }
 }
 
@@ -125,6 +122,15 @@ module "security_newsletter" {
   ecr_repository_name = "${var.resource_prefix}-security-newsletter-image"
   timeout             = 10
   role_arn            = module.security_newsletter_exec_role.arn
+
+  create_event_rule              = true
+  event_rule_name                = "${var.resource_prefix}-security-newsletter-event-rule"
+  event_target_id                = "${var.resource_prefix}-security-newsletter-event-target"
+  event_rule_schedule_expression = "rate(1 hour)"
+
+  create_permission    = true
+  permission_action    = "lambda:InvokeFunction"
+  permission_principal = "events.amazonaws.com"
 
   environment_variables = {
     "SQS_QUEUE_URL" : aws_sqs_queue.discord_bot_queue.url
@@ -180,7 +186,7 @@ module "discord_bot" {
   create_event_rule              = true
   event_rule_name                = "${var.resource_prefix}-event-rule"
   event_target_id                = "${var.resource_prefix}-event-target"
-  event_rule_schedule_expression = "rate(1 day)"
+  event_rule_schedule_expression = "rate(1 hour)"
 
   environment_variables = {
     "DISCORD_GUILD_ID" : var.DISCORD_GUILD_ID
@@ -191,6 +197,9 @@ module "discord_bot" {
   create_permission    = true
   permission_action    = "lambda:InvokeFunction"
   permission_principal = "events.amazonaws.com"
+
+  create_function_url             = true
+  function_url_authorization_type = "NONE"
 }
 
 # Resources - SQS

@@ -1,0 +1,43 @@
+[MASTER]
+# Specify a configuration file.
+rcfile=
+
+# Python code to analyze.
+ignore-patterns=
+
+# Files or directories to be ignored. They should be base names, not paths.
+ignore=venv
+
+disable=import-error,broad-except
+
+[MESSAGES CONTROL]
+disable=
+    missing-docstring,
+    invalid-name,
+    too-few-public-methods
+
+[REPORTS]
+# Tells whether to display a full report or only the messages.
+reports=no
+
+[FORMAT]
+# Maximum number of characters on a single line.
+max-line-length=100
+
+[LOGGING]
+# Logging modules to check that the string format arguments are in logging function parameters.
+logging-modules=logging
+
+[BASIC]
+# Variable names that should be considered constant.
+const-rgx=(([A-Z_][A-Z0-9_]*)|(__.*__))$
+
+[EXCEPTIONS]
+# Exceptions that will emit a warning when caught in a catch-all `except:` block.
+extend-default-ignore-exceptions=Exception,BaseException
+
+[IMPORTS]
+# Analyze imports themselves and their usage.
+
+# Allow imports to be nested inside functions.
+allow-import-inside-init=yes
