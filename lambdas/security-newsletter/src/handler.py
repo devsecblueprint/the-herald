@@ -67,12 +67,7 @@ def fetch_hacker_news_rss(feed_url="https://feeds.feedburner.com/TheHackersNews"
     articles = []
     for entry in feed.entries:
         articles.append(
-            {
-                "title": entry.title,
-                "link": entry.link,
-                "published": entry.published,
-                "summary": entry.summary,
-            }
+            {"title": entry.title, "link": entry.link, "published": entry.published}
         )
 
     return articles

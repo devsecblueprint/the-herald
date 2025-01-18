@@ -58,9 +58,7 @@ def main(event, _):
 
     # Process newsletters in the Queue
     if event.get("source") == "aws.events":
-        channel_id = get_channel_id("📰-security-news")
-        processed_messages = process_all_queue_messages(channel_id)
-
+        processed_messages = process_all_queue_messages()
         logging.info("Total # of Processed Messages: %s", processed_messages)
 
         return {
@@ -138,14 +136,15 @@ def parse_youtube_xml(xml_body: str):
         return "XML data cannot be processed.", 500
 
 
-def process_all_queue_messages(channel_id: str):
+def process_all_queue_messages():
     """
-    Processes all messages in the SQS queue.
+    Processes all messages in the SQS queue before sending them to the respective
+    channels.
     """
     messages_processed = 0
     sqs_client = boto3.client("sqs")
 
-    while True:
+    while True:  # Iterate/loop until queue is empty...
         try:
             # Receive messages from the queue
             response = sqs_client.receive_message(
@@ -172,29 +171,6 @@ def process_all_queue_messages(channel_id: str):
                     "Message processed and deleted. Receipt Handle: %s",
                     message["ReceiptHandle"],
                 )
-
-            new_messages = check_messages_in_discord(
-                [message["Body"] for message in messages], channel_id
-            )
-
-            if new_messages:
-                logging.info("New messages found: %s", new_messages)
-            else:
-                logging.info("No new messages found.")
-                break
-
-            for message in new_messages:
-                try:
-                    # Process the message
-                    send_message_to_channel(
-                        channel_id,
-                        message,
-                    )
-                    time.sleep(3)  # Small delay to prevent rate limiting
-
-                except Exception as e:
-                    logging.error("Error processing message: %s", str(e))
-                    continue
 
         except Exception as e:
             logging.error("Error receiving messages from queue: %s", str(e))
@@ -239,10 +215,45 @@ def get_discord_token():
     return response["Parameter"]["Value"]
 
 
-if __name__ == "__main__":
-    check_messages_in_discord(
-        [
-            "https://thehackernews.com/2025/01/new-doubleclickjacking-exploit-bypasses.html"
-        ],
-        "1320604883484672102",
+def process_jobs(messages):
+    """
+    Processes a job message by sending it to the specified channel.
+    """
+    logging.info("Processing job messages: %s", messages)
+    print("WIP!")
+
+
+def process_newsletters(messages):
+    """
+    Processes a newsletter message by sending it to the specified channel.
+    """
+    logging.info("Processing newsletter messages: %s", message)
+    channel_id = get_channel_id("📰-security-news")
+
+    newsletter_messages = []
+    for message in messages:
+        if message.get("MessageGroupId") == "newsletter":
+            newsletter_messages.append(message["Body"])
+
+    new_messages = check_messages_in_discord(
+        [message["Body"] for message in newsletter_messages], channel_id
     )
+
+    if new_messages:
+        logging.info("New messages found: %s", new_messages)
+    else:
+        logging.info("No new messages found.")
+        return
+
+    for message in new_messages:
+        try:
+            # Process the message
+            send_message_to_channel(
+                channel_id,
+                message,
+            )
+
+            time.sleep(3)  # Small delay to prevent rate limitin
+        except Exception as e:
+            logging.error("Error processing message: %s", str(e))
+            continue
