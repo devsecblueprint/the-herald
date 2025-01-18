@@ -44,8 +44,8 @@ def main(event, _):
             logging.info("New YouTube video detected! Parsing XML body")
 
             channel_id = get_channel_id(CONTENT_CORNER_CHANNEL_NAME)
-
             processed_messages = process_video(event.get("body"), channel_id)
+
             return {
                 "statusCode": 200,
                 "headers": {"Content-Type": "text/plain"},
@@ -89,6 +89,8 @@ def send_message_to_channel(channel_id, message):
     data = {"content": message}
 
     response = requests.post(url, headers=headers, data=json.dumps(data), timeout=10)
+    logging.info("Response: %s", response.text)
+
     response.raise_for_status()
 
 
@@ -137,7 +139,8 @@ def parse_youtube_xml(xml_body: str):
 
     except (ExpatError, LookupError):
         # request.data contains malformed XML or no XML at all, return FORBIDDEN.
-        return "XML data cannot be processed.", 500
+        logging.error("XML data cannot be processed.")
+        return None
 
 
 def process_video(body: str, channel_id: str):
@@ -148,9 +151,10 @@ def process_video(body: str, channel_id: str):
     dynamodb_client = boto3.client("dynamodb")
     payload = parse_youtube_xml(body)
 
-    message = (
-        f"Hello @everyone!\nCheck out @damienjburks's latest video:\n{payload['videoName']} {payload['videoUrl']}",
-    )
+    if payload is None:
+        return "There was an issue processing the XML.", 500
+
+    message = f"Hey @everyone - Check out Damien's latest video - {payload['videoName']} {payload['videoUrl']}"
     response = dynamodb_client.get_item(
         TableName=TABLE_ARN,
         Key={
@@ -163,8 +167,17 @@ def process_video(body: str, channel_id: str):
         logging.info("Video already exists in DynamoDB: %s", message)
         return "Video already exists in DynamoDB."
 
-    # Check to see if it exists already
-    if check_messages_in_discord(message, channel_id):
+    response = dynamodb_client.put_item(
+        TableName=TABLE_ARN,
+        Item={
+            "type": {"S": "video"},
+            "link": {"S": payload["videoUrl"]},
+            "videoName": {"S": payload["videoName"]},
+        },
+    )
+    logging.info("Video does not exist in DynamoDB: %s", response)
+
+    if not check_messages_in_discord([message], channel_id):
         logging.info("Message already exist in the Discord channel.")
         return "Message already exist in the Discord channel."
 
@@ -194,10 +207,12 @@ def process_all_newsletters(channel_id: str):
         link = item["link"]["S"]
         logging.info("Link: %s", link)
         try:
-            send_message_to_channel(
-                channel_id,
-                link,
-            )
+            if not check_messages_in_discord([link], channel_id):
+                send_message_to_channel(
+                    channel_id,
+                    link,
+                )
+
             time.sleep(3)  # Small delay to prevent rate limiting
         except Exception as e:
             logging.error("Error processing message: %s", str(e))

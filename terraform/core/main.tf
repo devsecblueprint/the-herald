@@ -160,7 +160,8 @@ module "discord_bot_exec_role" {
       {
         "Action" : [
           "dynamodb:GetItem",
-          "dynamodb:DeleteItem"
+          "dynamodb:DeleteItem",
+          "dynamodb:Scan"
         ]
         "Effect" : "Allow"
         "Resource" : aws_dynamodb_table.discord_bot_table.arn
