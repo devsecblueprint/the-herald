@@ -11,8 +11,8 @@ import feedparser
 import pytz
 
 
-QUEUE_URL = os.environ["SQS_QUEUE_URL"]
-QUEUE_GROUP = "newsletter"
+TABLE_ARN = os.environ["DYNAMODB_TABLE_ARN"]
+ARTIFACT_TYPE = "newsletter"
 
 # Logging Configuration
 logging.getLogger().setLevel(logging.INFO)
@@ -28,12 +28,8 @@ def main(event, _):
     latest_articles = get_latest_article_with_timezone(fetch_hacker_news_rss())
 
     logging.info("Latest articles: %s", latest_articles)
-    for article in latest_articles:
-        logging.info("Article: %s", article["title"])
-        link = article["link"]
-        send_message(link)
-
-    return "Security Newsletters have been sent", 200
+    links = [article["link"] for article in latest_articles]
+    return publish_message_to_table(links)
 
 
 def get_latest_article_with_timezone(articles, timezone_str="UTC"):
@@ -78,19 +74,20 @@ def fetch_hacker_news_rss(feed_url="https://feeds.feedburner.com/TheHackersNews"
     return articles
 
 
-def send_message(message_body: str):
+def publish_message_to_table(links: str):
     """
     Sends a message to the SQS queue.
     Returns a dictionary with the message and the message ID.
     """
     logging.info("Sending message to SQS queue")
 
-    sqs = boto3.client("sqs")
+    dynamodb_client = boto3.client("dynamodb")
 
-    response_send = sqs.send_message(
-        QueueUrl=QUEUE_URL,
-        MessageBody=message_body,
-        MessageGroupId=QUEUE_GROUP,
-    )
+    for link in links:
+        logging.info("Link: %s", link)
+        response = dynamodb_client.put_item(
+            TableName=TABLE_ARN, Item={"string": {"type": ARTIFACT_TYPE, "link": link}}
+        )
+        logging.info("Response: %s", response)
 
-    return {"message": "Message has been sent!", "id": response_send["MessageId"]}
+    return {"message": "Message has been logged to DynamoDB!", "links": links}
