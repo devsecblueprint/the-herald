@@ -86,7 +86,8 @@ def publish_message_to_table(links: str):
     for link in links:
         logging.info("Link: %s", link)
         response = dynamodb_client.put_item(
-            TableName=TABLE_ARN, Item={"string": {"type": ARTIFACT_TYPE, "link": link}}
+            TableName=TABLE_ARN,
+            Item={"type": {"S": ARTIFACT_TYPE}, "link": {"S": link}},
         )
         logging.info("Response: %s", response)
 
