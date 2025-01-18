@@ -14,7 +14,9 @@ import xmltodict
 
 TOKEN_PARAMETER = os.environ["DISCORD_TOKEN_PARAMETER"]
 GUILD_ID = os.environ["DISCORD_GUILD_ID"]
-QUEUE_URL = os.environ["SQS_QUEUE_URL"]
+TABLE_ARN = os.environ["DYNAMODB_TABLE_ARN"]
+CONTENT_CORNER_CHANNEL_NAME = os.environ["CONTENT_CORNER_CHANNEL_NAME"]
+NEWSLETTER_CHANNEL_NAME = os.environ["NEWSLETTER_CHANNEL_NAME"]
 
 # Logging Configuration
 logging.getLogger().setLevel(logging.INFO)
@@ -40,26 +42,26 @@ def main(event, _):
     if event.get("body"):
         if "xml" in event.get("body"):
             logging.info("New YouTube video detected! Parsing XML body")
-            payload = parse_youtube_xml(event.get("body"))
-            logging.info("Payload: %s", payload)
 
-            channel_id = get_channel_id("📹-content-corner")
-            send_message_to_channel(
-                channel_id,
-                f"@everyone - Check out my latest video: \
-                    {payload['videoName']} {payload['videoUrl']}",
-            )
+            channel_id = get_channel_id(CONTENT_CORNER_CHANNEL_NAME)
 
+            processed_messages = process_video(event.get("body"), channel_id)
             return {
                 "statusCode": 200,
                 "headers": {"Content-Type": "text/plain"},
-                "body": "Video message has been published or posted.",
+                "body": "Video message has been published or posted!",
             }
+
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "text/plain"},
+            "body": "Video information already exists in the channel.",
+        }
 
     # Process newsletters in the Queue
     if event.get("source") == "aws.events":
-        channel_id = get_channel_id("📰-security-news")
-        processed_messages = process_all_queue_messages(channel_id)
+        channel_id = get_channel_id(NEWSLETTER_CHANNEL_NAME)
+        processed_messages = process_all_newsletters(channel_id)
 
         logging.info("Total # of Processed Messages: %s", processed_messages)
 
@@ -138,69 +140,77 @@ def parse_youtube_xml(xml_body: str):
         return "XML data cannot be processed.", 500
 
 
-def process_all_queue_messages(channel_id: str):
+def process_video(body: str, channel_id: str):
+    # pylint: disable=line-too-long
     """
-    Processes all messages in the SQS queue.
+    If the video does not exist in the DynamoDB table, it will send a message.
     """
-    messages_processed = 0
-    sqs_client = boto3.client("sqs")
+    dynamodb_client = boto3.client("dynamodb")
+    payload = parse_youtube_xml(body)
 
-    while True:
+    message = (
+        f"Hello @everyone!\nCheck out @damienjburks's latest video:\n{payload['videoName']} {payload['videoUrl']}",
+    )
+    response = dynamodb_client.get_item(
+        TableName=TABLE_ARN,
+        Key={
+            "type": {"S": "video"},
+            "link": {"S": payload["videoUrl"]},
+        },
+    )
+
+    if "Item" in response:
+        logging.info("Video already exists in DynamoDB: %s", message)
+        return
+
+    # Check to see if it exists already
+    if check_messages_in_discord(message, channel_id):
+        logging.info("Message already exist in the Discord channel.")
+        return
+
+    send_message_to_channel(channel_id, message)
+
+    return "Video has been sent"
+
+
+def process_all_newsletters(channel_id: str):
+    """
+    Processes all newsletters in the DynamoDB table,
+    and clears them all out once it's done.
+    """
+    dynamodb_client = boto3.client("dynamodb")
+
+    response = dynamodb_client.scan(
+        TableName=TABLE_ARN,
+        FilterExpression="#type = :newsletter_type",
+        ExpressionAttributeNames={
+            "#type": "type"  # 'type' is a reserved word in DynamoDB
+        },
+        ExpressionAttributeValues={":newsletter_type": {"S": "newsletter"}},
+    )
+    items = response.get("Items")
+
+    for item in items:
+        link = item["link"]["S"]
+        logging.info("Link: %s", link)
         try:
-            # Receive messages from the queue
-            response = sqs_client.receive_message(
-                QueueUrl=QUEUE_URL,
-                MaxNumberOfMessages=10,  # Maximum allowed by SQS
-                WaitTimeSeconds=5,
+            send_message_to_channel(
+                channel_id,
+                link,
             )
-
-            # Check if we got any messages
-            messages = response.get("Messages", [])
-            if not messages:
-                logging.info(
-                    "Queue is empty. Total messages processed: %s", messages_processed
-                )
-                break
-
-            # Delete messages before processing
-            for message in messages:
-                sqs_client.delete_message(
-                    QueueUrl=QUEUE_URL, ReceiptHandle=message["ReceiptHandle"]
-                )
-                messages_processed += 1
-                logging.info(
-                    "Message processed and deleted. Receipt Handle: %s",
-                    message["ReceiptHandle"],
-                )
-
-            new_messages = check_messages_in_discord(
-                [message["Body"] for message in messages], channel_id
-            )
-
-            if new_messages:
-                logging.info("New messages found: %s", new_messages)
-            else:
-                logging.info("No new messages found.")
-                break
-
-            for message in new_messages:
-                try:
-                    # Process the message
-                    send_message_to_channel(
-                        channel_id,
-                        message,
-                    )
-                    time.sleep(3)  # Small delay to prevent rate limiting
-
-                except Exception as e:
-                    logging.error("Error processing message: %s", str(e))
-                    continue
-
+            time.sleep(3)  # Small delay to prevent rate limiting
         except Exception as e:
-            logging.error("Error receiving messages from queue: %s", str(e))
-            break
+            logging.error("Error processing message: %s", str(e))
+            continue
 
-    return messages_processed
+    # Delete record from DynamoDB
+    for item in items:
+        dynamodb_client.delete_item(
+            TableName=TABLE_ARN,
+            Key={"type": {"S": "newsletter"}, "link": {"S": item["link"]["S"]}},
+        )
+
+    return len(items)
 
 
 def check_messages_in_discord(messages: list, channel_id: str):
@@ -237,12 +247,3 @@ def get_discord_token():
     client = boto3.client("ssm")
     response = client.get_parameter(Name=TOKEN_PARAMETER, WithDecryption=True)
     return response["Parameter"]["Value"]
-
-
-if __name__ == "__main__":
-    check_messages_in_discord(
-        [
-            "https://thehackernews.com/2025/01/new-doubleclickjacking-exploit-bypasses.html"
-        ],
-        "1320604883484672102",
-    )

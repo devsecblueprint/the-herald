@@ -37,13 +37,6 @@ module "youtube_channel_subscriber_exec_role" {
     "Statement" : [
       {
         "Action" : [
-          "sqs:SendMessage"
-        ]
-        "Effect" : "Allow"
-        "Resource" : aws_sqs_queue.discord_bot_queue.arn
-      },
-      {
-        "Action" : [
           "lambda:GetFunction",
           "lambda:GetFunctionUrlConfig"
         ]
@@ -73,7 +66,7 @@ module "youtube_channel_subscriber" {
 
   environment_variables = {
     "YOUTUBE_CHANNEL_HANDLES" : join(",", local.YOUTUBE_CHANNEL_HANDLES)
-    "SQS_QUEUE_URL" : aws_sqs_queue.discord_bot_queue.url
+    "DYNAMODB_TABLE_ARN" : aws_dynamodb_table.discord_bot_table.arn
     "DISCORD_BOT_LAMBDA_NAME" : module.discord_bot.name
   }
 }
@@ -106,10 +99,12 @@ module "security_newsletter_exec_role" {
     "Statement" : [
       {
         "Action" : [
-          "sqs:SendMessage"
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem"
         ]
         "Effect" : "Allow"
-        "Resource" : aws_sqs_queue.discord_bot_queue.arn
+        "Resource" : aws_dynamodb_table.discord_bot_table.arn
       }
     ]
   })
@@ -133,7 +128,7 @@ module "security_newsletter" {
   permission_principal = "events.amazonaws.com"
 
   environment_variables = {
-    "SQS_QUEUE_URL" : aws_sqs_queue.discord_bot_queue.url
+    "DYNAMODB_TABLE_ARN" : aws_dynamodb_table.discord_bot_table.arn
   }
 }
 
@@ -164,12 +159,11 @@ module "discord_bot_exec_role" {
     "Statement" : [
       {
         "Action" : [
-          "sqs:ReceiveMessage",
-          "sqs:DeleteMessage",
-          "sqs:GetQueueAttributes"
+          "dynamodb:GetItem",
+          "dynamodb:DeleteItem"
         ]
         "Effect" : "Allow"
-        "Resource" : aws_sqs_queue.discord_bot_queue.arn
+        "Resource" : aws_dynamodb_table.discord_bot_table.arn
       }
     ]
   })
@@ -191,7 +185,9 @@ module "discord_bot" {
   environment_variables = {
     "DISCORD_GUILD_ID" : var.DISCORD_GUILD_ID
     "DISCORD_TOKEN_PARAMETER" : module.discord_token.name
-    "SQS_QUEUE_URL" : aws_sqs_queue.discord_bot_queue.url
+    "DYNAMODB_TABLE_ARN" : aws_dynamodb_table.discord_bot_table.arn
+    "NEWSLETTER_CHANNEL_NAME" : "security-news-test"      #"📰-security-news"
+    "CONTENT_CORNER_CHANNEL_NAME" : "content-corner-test" #"📹-content-corner"
   }
 
   create_permission    = true
@@ -202,15 +198,41 @@ module "discord_bot" {
   function_url_authorization_type = "NONE"
 }
 
-# Resources - SQS
-resource "aws_sqs_queue" "discord_bot_queue" {
-  name = "${var.resource_prefix}-queue.fifo"
+# DynamoDB Configuration (Table)
+resource "aws_dynamodb_table" "discord_bot_table" {
+  name         = "${var.resource_prefix}-temp-data"
+  billing_mode = "PAY_PER_REQUEST" # On-demand capacity
+  hash_key     = "type"
+  range_key    = "link"
 
-  visibility_timeout_seconds = 30
-  message_retention_seconds  = 86400 # 1 day
-  delay_seconds              = 0
-  receive_wait_time_seconds  = 10
+  attribute {
+    name = "type"
+    type = "S"
+  }
 
-  fifo_queue                  = true
-  content_based_deduplication = true
+  attribute {
+    name = "link"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "type-index"
+    hash_key        = "type"
+    projection_type = "ALL"
+    write_capacity  = 5
+    read_capacity   = 5
+  }
+
+  ttl {
+    enabled        = true
+    attribute_name = "ExpirationTime"
+  }
+
+  point_in_time_recovery {
+    enabled = false
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
 }
