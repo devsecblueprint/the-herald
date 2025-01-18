@@ -161,12 +161,12 @@ def process_video(body: str, channel_id: str):
 
     if "Item" in response:
         logging.info("Video already exists in DynamoDB: %s", message)
-        return
+        return "Video already exists in DynamoDB."
 
     # Check to see if it exists already
     if check_messages_in_discord(message, channel_id):
         logging.info("Message already exist in the Discord channel.")
-        return
+        return "Message already exist in the Discord channel."
 
     send_message_to_channel(channel_id, message)
 
