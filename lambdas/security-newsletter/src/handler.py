@@ -91,7 +91,7 @@ def publish_message_to_table(links: str):
                 "type": {"S": ARTIFACT_TYPE},
                 "link": {"S": link},
                 "expirationDate": {
-                    "N": int((datetime.now() + timedelta(days=1)).timestamp())
+                    "S": str(int((datetime.now() + timedelta(days=1)).timestamp()))
                 },
             },
         )
