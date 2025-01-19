@@ -187,8 +187,8 @@ module "discord_bot" {
     "DISCORD_GUILD_ID" : var.DISCORD_GUILD_ID
     "DISCORD_TOKEN_PARAMETER" : module.discord_token.name
     "DYNAMODB_TABLE_ARN" : aws_dynamodb_table.discord_bot_table.arn
-    "NEWSLETTER_CHANNEL_NAME" : "security-news-test"      #"📰-security-news"
-    "CONTENT_CORNER_CHANNEL_NAME" : "content-corner-test" #"📹-content-corner"
+    "NEWSLETTER_CHANNEL_NAME" : "📰-security-news"
+    "CONTENT_CORNER_CHANNEL_NAME" : "📹-content-corner"
   }
 
   create_permission    = true
