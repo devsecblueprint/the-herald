@@ -226,7 +226,7 @@ resource "aws_dynamodb_table" "discord_bot_table" {
 
   ttl {
     enabled        = true
-    attribute_name = "ExpirationTime"
+    attribute_name = "expirationDate"
   }
 
   point_in_time_recovery {

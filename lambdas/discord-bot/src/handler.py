@@ -6,6 +6,7 @@ import os
 import time
 import json
 import logging
+from datetime import datetime, timedelta
 from xml.parsers.expat import ExpatError
 
 import requests
@@ -173,6 +174,9 @@ def process_video(body: str, channel_id: str):
             "type": {"S": "video"},
             "link": {"S": payload["videoUrl"]},
             "videoName": {"S": payload["videoName"]},
+            "expirationDate": {
+                "N": int((datetime.now() + timedelta(days=1)).timestamp())
+            },
         },
     )
     logging.info("Video does not exist in DynamoDB: %s", response)

@@ -4,7 +4,7 @@ Main handler.
 
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import boto3
 import feedparser
@@ -87,7 +87,13 @@ def publish_message_to_table(links: str):
         logging.info("Link: %s", link)
         response = dynamodb_client.put_item(
             TableName=TABLE_ARN,
-            Item={"type": {"S": ARTIFACT_TYPE}, "link": {"S": link}},
+            Item={
+                "type": {"S": ARTIFACT_TYPE},
+                "link": {"S": link},
+                "expirationDate": {
+                    "N": int((datetime.now() + timedelta(days=1)).timestamp())
+                },
+            },
         )
         logging.info("Response: %s", response)
 
