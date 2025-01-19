@@ -181,13 +181,12 @@ def process_video(body: str, channel_id: str):
     )
     logging.info("Video does not exist in DynamoDB: %s", response)
 
-    if not check_messages_in_discord([message], channel_id):
-        logging.info("Message already exist in the Discord channel.")
-        return "Message already exist in the Discord channel."
+    if check_messages_in_discord([message], channel_id):
+        send_message_to_channel(channel_id, message)
+        return "Video has been sent"
 
-    send_message_to_channel(channel_id, message)
-
-    return "Video has been sent"
+    logging.info("Message already exist in the Discord channel.")
+    return "Message already exist in the Discord channel."
 
 
 def process_all_newsletters(channel_id: str):
@@ -211,7 +210,7 @@ def process_all_newsletters(channel_id: str):
         link = item["link"]["S"]
         logging.info("Link: %s", link)
         try:
-            if not check_messages_in_discord([link], channel_id):
+            if check_messages_in_discord([link], channel_id):
                 send_message_to_channel(
                     channel_id,
                     link,
