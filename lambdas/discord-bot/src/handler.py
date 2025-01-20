@@ -82,73 +82,6 @@ def main(event, _):
     }
 
 
-def send_message_to_channel(channel_id, message):
-    """
-    Sends a message to a specific Discord channel.
-    """
-    token = get_discord_token()
-
-    logging.info("Channel ID: %s", channel_id)
-    url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
-
-    headers = {"Authorization": f"Bot {token}", "Content-Type": "application/json"}
-    data = {"content": message}
-
-    response = requests.post(url, headers=headers, data=json.dumps(data), timeout=10)
-    logging.info("Response: %s", response.text)
-
-    response.raise_for_status()
-
-
-def get_channel_id(channel_name):
-    """
-    Retrieves the channel ID for a given channel name.
-    """
-    token = get_discord_token()
-    url = f"https://discord.com/api/v10/guilds/{GUILD_ID}/channels"
-    headers = {"Authorization": f"Bot {token}", "Content-Type": "application/json"}
-
-    response = requests.get(url, headers=headers, timeout=10)
-    response.raise_for_status()
-
-    channels = response.json()
-    for channel in channels:
-        if channel["name"] == channel_name:
-            return channel["id"]
-
-    raise ValueError(f"Channel '{channel_name}' not found.")
-
-
-def parse_youtube_xml(xml_body: str):
-    """
-    Parses the YouTube XML body
-    """
-    logging.info("Parsing YouTube XML body")
-    logging.info("XML Body: %s", xml_body)
-
-    try:
-        # Parse the XML from the POST request into a dict.
-        xml_dict = xmltodict.parse(xml_body)
-
-        # Parse out the video URL & the title
-        video_url = xml_dict["feed"]["entry"]["link"]["@href"]
-        video_title = xml_dict["feed"]["entry"]["title"]
-
-        # Trigger Step Function by passing in the video title and URL
-        payload = {
-            "videoName": video_title,
-            "videoUrl": video_url,
-            "contentType": "video",
-        }
-
-        return payload
-
-    except (ExpatError, LookupError):
-        # request.data contains malformed XML or no XML at all, return FORBIDDEN.
-        logging.error("XML data cannot be processed.")
-        return None
-
-
 def process_all_jobs(channel_id: str):
     # pylint: disable=line-too-long
     """
@@ -171,7 +104,7 @@ def process_all_jobs(channel_id: str):
         job_title = item["title"]["S"]
         company_name = item["companyName"]["S"]
 
-        message = f"Hello @everyone - check this new job information below:\nTitle: {job_title}\nCompany Name:{company_name}\nLink: {link}"
+        message = f"Hello @everyone - check this new job information below:\n\nTitle: {job_title}\nCompany Name: {company_name}\nLink: {link}"
         try:
             if check_messages_in_discord([message], channel_id):
                 send_message_to_channel(channel_id, message)
@@ -274,6 +207,75 @@ def process_all_newsletters(channel_id: str):
         )
 
     return len(items)
+
+
+def send_message_to_channel(channel_id, message):
+    """
+    Sends a message to a specific Discord channel.
+    """
+    token = get_discord_token()
+
+    logging.info("Channel ID: %s", channel_id)
+    url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
+
+    headers = {"Authorization": f"Bot {token}", "Content-Type": "application/json"}
+    data = {"content": message}
+
+    response = requests.post(url, headers=headers, data=json.dumps(data), timeout=10)
+    logging.info("Response: %s", response.text)
+
+    response.raise_for_status()
+
+    time.sleep(3)  # Small delay to prevent rate limiting
+
+
+def get_channel_id(channel_name):
+    """
+    Retrieves the channel ID for a given channel name.
+    """
+    token = get_discord_token()
+    url = f"https://discord.com/api/v10/guilds/{GUILD_ID}/channels"
+    headers = {"Authorization": f"Bot {token}", "Content-Type": "application/json"}
+
+    response = requests.get(url, headers=headers, timeout=10)
+    response.raise_for_status()
+
+    channels = response.json()
+    for channel in channels:
+        if channel["name"] == channel_name:
+            return channel["id"]
+
+    raise ValueError(f"Channel '{channel_name}' not found.")
+
+
+def parse_youtube_xml(xml_body: str):
+    """
+    Parses the YouTube XML body
+    """
+    logging.info("Parsing YouTube XML body")
+    logging.info("XML Body: %s", xml_body)
+
+    try:
+        # Parse the XML from the POST request into a dict.
+        xml_dict = xmltodict.parse(xml_body)
+
+        # Parse out the video URL & the title
+        video_url = xml_dict["feed"]["entry"]["link"]["@href"]
+        video_title = xml_dict["feed"]["entry"]["title"]
+
+        # Trigger Step Function by passing in the video title and URL
+        payload = {
+            "videoName": video_title,
+            "videoUrl": video_url,
+            "contentType": "video",
+        }
+
+        return payload
+
+    except (ExpatError, LookupError):
+        # request.data contains malformed XML or no XML at all, return FORBIDDEN.
+        logging.error("XML data cannot be processed.")
+        return None
 
 
 def check_messages_in_discord(messages: list, channel_id: str):

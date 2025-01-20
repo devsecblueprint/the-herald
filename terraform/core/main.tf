@@ -130,7 +130,7 @@ module "security_newsletter" {
   create_event_rule              = true
   event_rule_name                = "${var.resource_prefix}-security-newsletter-event-rule"
   event_target_id                = "${var.resource_prefix}-security-newsletter-event-target"
-  event_rule_schedule_expression = "rate(1 day)"
+  event_rule_schedule_expression = "rate(1 hour)"
 
   create_permission    = true
   permission_action    = "lambda:InvokeFunction"
@@ -192,7 +192,7 @@ module "job_poster" {
   create_event_rule              = true
   event_rule_name                = "${var.resource_prefix}-job-poster-event-rule"
   event_target_id                = "${var.resource_prefix}-job-poster-event-target"
-  event_rule_schedule_expression = "rate(1 hour)"
+  event_rule_schedule_expression = "rate(1 day)"
 
   create_permission    = true
   permission_action    = "lambda:InvokeFunction"
