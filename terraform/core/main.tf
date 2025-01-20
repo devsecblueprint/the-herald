@@ -247,7 +247,7 @@ module "discord_bot" {
 
   function_name       = var.resource_prefix
   ecr_repository_name = "${var.resource_prefix}-image"
-  timeout             = 60
+  timeout             = 900
   role_arn            = module.discord_bot_exec_role.arn
 
   create_event_rule              = true
