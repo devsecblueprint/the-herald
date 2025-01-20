@@ -6,6 +6,7 @@ import os
 import time
 import json
 import logging
+
 from datetime import datetime, timedelta
 from xml.parsers.expat import ExpatError
 
@@ -18,6 +19,7 @@ GUILD_ID = os.environ["DISCORD_GUILD_ID"]
 TABLE_ARN = os.environ["DYNAMODB_TABLE_ARN"]
 CONTENT_CORNER_CHANNEL_NAME = os.environ["CONTENT_CORNER_CHANNEL_NAME"]
 NEWSLETTER_CHANNEL_NAME = os.environ["NEWSLETTER_CHANNEL_NAME"]
+JOB_BOARD_CHANNEL_NAME = os.environ["JOB_BOARD_CHANNEL_NAME"]
 
 # Logging Configuration
 logging.getLogger().setLevel(logging.INFO)
@@ -63,8 +65,11 @@ def main(event, _):
     if event.get("source") == "aws.events":
         channel_id = get_channel_id(NEWSLETTER_CHANNEL_NAME)
         processed_messages = process_all_newsletters(channel_id)
+        logging.info("Total # of Processed Newsletter Messages: %s", processed_messages)
 
-        logging.info("Total # of Processed Messages: %s", processed_messages)
+        channel_id = get_channel_id(JOB_BOARD_CHANNEL_NAME)
+        processed_messages = process_all_jobs(channel_id)
+        logging.info("Total # of Processed Job Messages: %s", processed_messages)
 
         return {
             "statusCode": 200,
@@ -142,6 +147,46 @@ def parse_youtube_xml(xml_body: str):
         # request.data contains malformed XML or no XML at all, return FORBIDDEN.
         logging.error("XML data cannot be processed.")
         return None
+
+
+def process_all_jobs(channel_id: str):
+    # pylint: disable=line-too-long
+    """
+    Processes and sends all jobs to the proper
+    Discord channel.
+    """
+    dynamodb_client = boto3.client("dynamodb")
+    response = dynamodb_client.scan(
+        TableName=TABLE_ARN,
+        FilterExpression="#type = :job_type",
+        ExpressionAttributeNames={
+            "#type": "type"  # 'type' is a reserved word in DynamoDB
+        },
+        ExpressionAttributeValues={":job_type": {"S": "job"}},
+    )
+    items = response.get("Items")
+
+    for item in items:
+        link = item["link"]["S"]
+        job_title = item["title"]["S"]
+        company_name = item["companyName"]["S"]
+
+        message = f"Hello @everyone - check this new job information below:\nTitle: {job_title}\nCompany Name:{company_name}\nLink: {link}"
+        try:
+            if check_messages_in_discord([message], channel_id):
+                send_message_to_channel(channel_id, message)
+        except Exception as e:
+            logging.error("Error processing job: %s", e)
+            continue
+
+    # Delete record from DynamoDB
+    for item in items:
+        dynamodb_client.delete_item(
+            TableName=TABLE_ARN,
+            Key={"type": {"S": "job"}, "link": {"S": item["link"]["S"]}},
+        )
+
+    return len(items)
 
 
 def process_video(body: str, channel_id: str):

@@ -11,8 +11,8 @@ API_TOKEN_PARAMETER = os.environ["SERPAPI_TOKEN_PARAMETER"]
 PREFERRED_JOB_BOARDS = ["Indeed", "LinkedIn", "ZipRecruiter", "Glassdoor", "Monster"]
 QUERIES = ["devsecops", "cloud security"]
 
-# Set Logging level
-logging.basicConfig(level=logging.INFO)
+# Logging Configuration
+logging.getLogger().setLevel(logging.INFO)
 
 # Parameters for Google Job Search API
 PARAMS = {

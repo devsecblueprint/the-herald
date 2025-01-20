@@ -130,7 +130,7 @@ module "security_newsletter" {
   create_event_rule              = true
   event_rule_name                = "${var.resource_prefix}-security-newsletter-event-rule"
   event_target_id                = "${var.resource_prefix}-security-newsletter-event-target"
-  event_rule_schedule_expression = "rate(1 hour)"
+  event_rule_schedule_expression = "rate(1 day)"
 
   create_permission    = true
   permission_action    = "lambda:InvokeFunction"
@@ -261,6 +261,7 @@ module "discord_bot" {
     "DYNAMODB_TABLE_ARN" : aws_dynamodb_table.discord_bot_table.arn
     "NEWSLETTER_CHANNEL_NAME" : "📰-security-news"
     "CONTENT_CORNER_CHANNEL_NAME" : "📹-content-corner"
+    "JOB_BOARD_CHANNEL_NAME" : "job-board-test"
   }
 
   create_permission    = true
