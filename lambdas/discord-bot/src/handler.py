@@ -260,7 +260,7 @@ def check_messages_in_discord(messages: list, channel_id: str):
 
 def get_discord_token():
     """
-    Retrieves the Discord token from AWS Secrets Manager.
+    Retrieves the Discord token from AWS SSM.
     """
     client = boto3.client("ssm")
     response = client.get_parameter(Name=TOKEN_PARAMETER, WithDecryption=True)

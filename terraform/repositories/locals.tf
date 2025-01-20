@@ -17,6 +17,9 @@ locals {
     ]
 }
   EOF
+
+  # Always add new image repositories to the bottom. 
+  # Order matters in this case. It will fail if you don't.
   ecr_repo_names = [
     # Newsletter Images
     "${var.resource_prefix}-security-newsletter-image",
@@ -25,6 +28,9 @@ locals {
     "${var.resource_prefix}-youtube-subscriber-image",
 
     # Main Bot
-    "${var.resource_prefix}-image"
+    "${var.resource_prefix}-image",
+
+    # Job Poster Image
+    "${var.resource_prefix}-job-poster-image",
   ]
 }

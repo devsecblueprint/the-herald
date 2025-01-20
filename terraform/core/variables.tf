@@ -12,3 +12,4 @@ variable "DISCORD_TOKEN" {}
 variable "DISCORD_GUILD_ID" {}
 variable "AWS_ACCESS_KEY" {}
 variable "AWS_SECRET_ACCESS_KEY" {}
+variable "SERPAPI_TOKEN" {}

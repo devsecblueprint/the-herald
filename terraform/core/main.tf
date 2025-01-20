@@ -10,6 +10,15 @@ module "discord_token" {
   type        = "SecureString"
 }
 
+module "serpapi_token" {
+  source = "./modules/ssm"
+
+  name        = "/credentials/serpapi/token"
+  description = "SerpAPI Token"
+  value       = var.SERPAPI_TOKEN
+  type        = "SecureString"
+}
+
 # Youtube Channel Subscriber
 module "youtube_channel_subscriber_exec_role" {
   source = "./modules/iam"
@@ -128,6 +137,69 @@ module "security_newsletter" {
   permission_principal = "events.amazonaws.com"
 
   environment_variables = {
+    "DYNAMODB_TABLE_ARN" : aws_dynamodb_table.discord_bot_table.arn
+  }
+}
+
+# Job Posting Board Information
+# Security Newsletter Creation
+module "job_poster_exec_role" {
+  source = "./modules/iam"
+
+  name = "${var.resource_prefix}-job-poster-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      },
+    ]
+  })
+  managed_policy_arns = [
+    "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+    "arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess"
+  ]
+
+  inline_policy_enabled = true
+  inline_policy = jsonencode({
+    "Version" : "2012-10-17"
+    "Statement" : [
+      {
+        "Action" : [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem"
+        ]
+        "Effect" : "Allow"
+        "Resource" : aws_dynamodb_table.discord_bot_table.arn
+      }
+    ]
+  })
+}
+
+module "job_poster" {
+  source = "./modules/lambda"
+
+  function_name       = "${var.resource_prefix}-job-poster"
+  ecr_repository_name = "${var.resource_prefix}-job-poster-image"
+  timeout             = 120
+  role_arn            = module.security_newsletter_exec_role.arn
+
+  create_event_rule              = true
+  event_rule_name                = "${var.resource_prefix}-job-poster-event-rule"
+  event_target_id                = "${var.resource_prefix}-job-poster-event-target"
+  event_rule_schedule_expression = "rate(1 hour)"
+
+  create_permission    = true
+  permission_action    = "lambda:InvokeFunction"
+  permission_principal = "events.amazonaws.com"
+
+  environment_variables = {
+    "SERPAPI_TOKEN_PARAMETER" : module.serpapi_token.name,
     "DYNAMODB_TABLE_ARN" : aws_dynamodb_table.discord_bot_table.arn
   }
 }
