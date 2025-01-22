@@ -8,7 +8,7 @@ from serpapi import GoogleSearch
 
 TABLE_ARN = os.environ["DYNAMODB_TABLE_ARN"]
 API_TOKEN_PARAMETER = os.environ["SERPAPI_TOKEN_PARAMETER"]
-PREFERRED_JOB_BOARDS = ["Indeed", "LinkedIn", "ZipRecruiter", "Glassdoor", "Monster"]
+PREFERRED_JOB_BOARDS = ["LinkedIn"]
 QUERIES = ["devsecops", "cloud security"]
 
 # Logging Configuration
