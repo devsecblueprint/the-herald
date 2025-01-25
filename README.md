@@ -11,6 +11,9 @@ The Herald is the ever-watchful and enigmatic bot, designed to guide, inform, an
 1. _Security Newsletter:_
    The Herald curates and delivers a cutting-edge security newsletter, ensuring users stay informed about the latest developments, threats, and best practices in cybersecurity and DevSecOps. Its updates are both timely and actionable.
 
+1. _Job Poster:_
+   The Herald brings you the latest job opportunities in Cloud Security and DevSecOps, ensuring you never miss a chance to advance your career. With carefully curated postings, The Herald connects you to roles tailored to your expertise, helping you stay ahead in the ever-evolving security landscape.
+
 1. _New Video Announcements:_
    Acting as the digital voice of the DSB founder, The Herald announces newly released videos, offering summaries and insights into their content. These updates ensure the community never misses a critical piece of guidance or inspiration.
 
@@ -19,6 +22,8 @@ The Herald is the ever-watchful and enigmatic bot, designed to guide, inform, an
 
 ## Architecture Diagram
 
+>**NOTE**: This architecture diagram is out of date, and needs to be updated to align with what is 
+> currently available/deployed into our AWS environment.
 ![Architecture Diagram](./docs/imgs/architecture.drawio.svg)
 
 ## Want To Contribute?

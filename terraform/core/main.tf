@@ -192,7 +192,7 @@ module "job_poster" {
   create_event_rule              = true
   event_rule_name                = "${var.resource_prefix}-job-poster-event-rule"
   event_target_id                = "${var.resource_prefix}-job-poster-event-target"
-  event_rule_schedule_expression = "rate(1 day)"
+  event_rule_schedule_expression = "cron(0 14 * * ? *)" # Everyday at 2 PM UTC (8 AM CST)
 
   create_permission    = true
   permission_action    = "lambda:InvokeFunction"

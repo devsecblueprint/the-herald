@@ -9,19 +9,13 @@ from serpapi import GoogleSearch
 TABLE_ARN = os.environ["DYNAMODB_TABLE_ARN"]
 API_TOKEN_PARAMETER = os.environ["SERPAPI_TOKEN_PARAMETER"]
 PREFERRED_JOB_BOARDS = ["LinkedIn"]
-QUERIES = ["devsecops", "cloud security"]
+QUERIES = ["devsecops in the last 3 days", "cloud security in the last 3 days"]
 
 # Logging Configuration
 logging.getLogger().setLevel(logging.INFO)
 
 # Parameters for Google Job Search API
-PARAMS = {
-    "api_key": "",
-    "engine": "google_jobs",
-    "google_domain": "google.com",
-    "q": "devsecops",
-    "ltype": "1",
-}
+PARAMS = {"api_key": "", "engine": "google_jobs", "google_domain": "google.com"}
 
 
 def main(event, _):
