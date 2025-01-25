@@ -261,7 +261,7 @@ module "discord_bot" {
     "DYNAMODB_TABLE_ARN" : aws_dynamodb_table.discord_bot_table.arn
     "NEWSLETTER_CHANNEL_NAME" : "📰-security-news"
     "CONTENT_CORNER_CHANNEL_NAME" : "📹-content-corner"
-    "JOB_BOARD_CHANNEL_NAME" : "job-board-test"
+    "JOB_BOARD_CHANNEL_NAME" : "🏢-job-board"
   }
 
   create_permission    = true
