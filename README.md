@@ -1,6 +1,8 @@
 # DSB Discord Bot - The Herald
 
-:construction: This project is still a work in progress. :construction:
+<p align="center">
+  <img src="./docs/imgs/the_herald.jpg" alt="The Herald Image" />
+</p>
 
 ## Overview... in a mystical sense
 
