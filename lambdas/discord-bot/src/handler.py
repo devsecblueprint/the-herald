@@ -153,7 +153,7 @@ def process_video(body: str, channel_id: str):
             "link": {"S": payload["videoUrl"]},
             "videoName": {"S": payload["videoName"]},
             "expirationDate": {
-                "N": int((datetime.now() + timedelta(days=1)).timestamp())
+                "S": str(int((datetime.now() + timedelta(days=1)).timestamp()))
             },
         },
     )
