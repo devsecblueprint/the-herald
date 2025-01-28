@@ -1,7 +1,3 @@
-"""
-Main handler.
-"""
-
 import os
 import logging
 from datetime import datetime, timedelta
@@ -25,7 +21,7 @@ def main(event, _):
     """
     logging.info("Event: %s", event)
 
-    latest_articles = get_latest_article_with_timezone(fetch_hacker_news_rss())
+    latest_articles = get_latest_article_with_timezone(fetch_bleeping_computer_rss())
 
     logging.info("Latest articles: %s", latest_articles)
     links = [article["link"] for article in latest_articles]
@@ -51,8 +47,8 @@ def get_latest_article_with_timezone(articles, timezone_str="UTC"):
     return todays_articles
 
 
-def fetch_hacker_news_rss(feed_url="https://feeds.feedburner.com/TheHackersNews"):
-    """Fetch articles from The Hacker News RSS feed."""
+def fetch_bleeping_computer_rss(feed_url="https://www.bleepingcomputer.com/feed/"):
+    """Fetch articles from the Bleeping Computer RSS feed."""
     # Parse the RSS feed
     feed = feedparser.parse(feed_url)
 
