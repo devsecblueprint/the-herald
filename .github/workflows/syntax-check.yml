@@ -1,4 +1,4 @@
-name: "Syntax Check - Python"
+name: "Syntax Check"
 
 on:
   workflow_call:
