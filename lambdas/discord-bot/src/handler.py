@@ -104,7 +104,7 @@ def process_all_jobs(channel_id: str):
         job_title = item["title"]["S"]
         company_name = item["companyName"]["S"]
 
-        message = f"Hello @everyone - check this new job information below:\n\nTitle: {job_title}\nCompany Name: {company_name}\nLink: {link}"
+        message = f"Hello @Actively Looking - check this new job information below:\n\nTitle: {job_title}\nCompany Name: {company_name}\nLink: {link}"
         try:
             if check_messages_in_discord([message], channel_id):
                 send_message_to_channel(channel_id, message)
