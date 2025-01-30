@@ -25,8 +25,6 @@ The Herald is the ever-watchful and enigmatic bot, designed to guide, inform, an
 
 ## Architecture Diagram
 
->**NOTE**: This architecture diagram is out of date, and needs to be updated to align with what is 
-> currently available/deployed into our AWS environment.
 ![Architecture Diagram](./docs/imgs/architecture.drawio.svg)
 
 ## Want To Contribute?
