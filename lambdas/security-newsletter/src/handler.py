@@ -7,7 +7,7 @@ import feedparser
 import pytz
 
 
-TABLE_ARN = os.environ["DYNAMODB_TABLE_ARN"]
+TABLE_ARN = "none"  # os.environ["DYNAMODB_TABLE_ARN"]
 ARTIFACT_TYPE = "newsletter"
 
 # Logging Configuration
@@ -32,12 +32,11 @@ def main(event, _):
     latest_articles = get_latest_article_with_timezone(all_articles)
 
     logging.info("Latest articles: %s", latest_articles)
-    
-    # Extract links from Bleeping Computer articles only
-    bleeping_links = [article["link"] for article in latest_articles 
-                      if "bleepingcomputer.com" in article["link"]]
-    
-    return publish_message_to_table(bleeping_links)
+
+    # Extract links from all articles
+    newsletter_links = [article["link"] for article in latest_articles]
+
+    return publish_message_to_table(newsletter_links)
 
 
 def get_latest_article_with_timezone(articles, timezone_str="UTC"):
@@ -50,8 +49,8 @@ def get_latest_article_with_timezone(articles, timezone_str="UTC"):
     for article in articles:
         date_str = article["published"]
         # Handle 'GMT' timezone suffix
-        if date_str.endswith(' GMT'):
-            date_str = date_str.replace(' GMT', ' +0000')
+        if date_str.endswith(" GMT"):
+            date_str = date_str.replace(" GMT", " +0000")
         try:
             parsed_date = datetime.strptime(date_str, "%a, %d %b %Y %H:%M:%S %z")
         except ValueError as e:
@@ -70,13 +69,16 @@ def fetch_bleeping_computer_rss(feed_url="https://www.bleepingcomputer.com/feed/
         raise ValueError(f"Error parsing feed: {feed.bozo_exception}")
     articles = []
     for entry in feed.entries:
-        articles.append({
-            "title": entry.title,
-            "link": entry.link,
-            "published": entry.published,
-            "summary": entry.summary,
-        })
+        articles.append(
+            {
+                "title": entry.title,
+                "link": entry.link,
+                "published": entry.published,
+                "summary": entry.summary,
+            }
+        )
     return articles
+
 
 def fetch_hacker_news_rss(feed_url="https://feeds.feedburner.com/TheHackersNews"):
     """Fetch articles from The Hacker News RSS feed."""
@@ -85,12 +87,14 @@ def fetch_hacker_news_rss(feed_url="https://feeds.feedburner.com/TheHackersNews"
         raise ValueError(f"Error parsing feed: {feed.bozo_exception}")
     h_articles = []
     for entry in feed.entries:
-        h_articles.append({
-            "title": entry.title,
-            "link": entry.link,
-            "published": entry.published,
-            "summary": entry.summary,
-        })
+        h_articles.append(
+            {
+                "title": entry.title,
+                "link": entry.link,
+                "published": entry.published,
+                "summary": entry.summary,
+            }
+        )
     return h_articles
 
 
