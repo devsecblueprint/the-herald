@@ -7,7 +7,7 @@ import feedparser
 import pytz
 
 
-TABLE_ARN = "none"  # os.environ["DYNAMODB_TABLE_ARN"]
+TABLE_ARN = os.environ["DYNAMODB_TABLE_ARN"]
 ARTIFACT_TYPE = "newsletter"
 
 # Logging Configuration
