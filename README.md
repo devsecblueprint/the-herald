@@ -8,6 +8,7 @@
 
 The Herald is the ever-watchful and enigmatic bot, designed to guide, inform, and protect the DSB community in the sprawling digital world. True to its name, The Herald serves as a messenger and beacon, delivering essential updates and insights to empower users on their DevSecOps journey.
 
+
 **Responsibilities of The Herald:**
 
 1. _Security Newsletter:_
@@ -24,8 +25,6 @@ The Herald is the ever-watchful and enigmatic bot, designed to guide, inform, an
 
 ## Architecture Diagram
 
->**NOTE**: This architecture diagram is out of date, and needs to be updated to align with what is 
-> currently available/deployed into our AWS environment.
 ![Architecture Diagram](./docs/imgs/architecture.drawio.svg)
 
 ## Want To Contribute?
