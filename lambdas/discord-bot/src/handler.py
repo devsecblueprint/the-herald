@@ -14,12 +14,14 @@ import requests
 import boto3
 import xmltodict
 
+# Environment Variables
 TOKEN_PARAMETER = os.environ["DISCORD_TOKEN_PARAMETER"]
 GUILD_ID = os.environ["DISCORD_GUILD_ID"]
 TABLE_ARN = os.environ["DYNAMODB_TABLE_ARN"]
 CONTENT_CORNER_CHANNEL_NAME = os.environ["CONTENT_CORNER_CHANNEL_NAME"]
 NEWSLETTER_CHANNEL_NAME = os.environ["NEWSLETTER_CHANNEL_NAME"]
 JOB_BOARD_CHANNEL_NAME = os.environ["JOB_BOARD_CHANNEL_NAME"]
+ACTIVELY_HIRING_ROLE_ID = os.environ["ACTIVELY_HIRING_ROLE_ID"]
 
 # Logging Configuration
 logging.getLogger().setLevel(logging.INFO)
@@ -104,7 +106,7 @@ def process_all_jobs(channel_id: str):
         job_title = item["title"]["S"]
         company_name = item["companyName"]["S"]
 
-        message = f"Hello @Actively-Looking - check this new job information below:\n\nTitle: {job_title}\nCompany Name: {company_name}\nLink: {link}"
+        message = f"<@&{ACTIVELY_HIRING_ROLE_ID}>- check this new job information below:\n\nTitle: {job_title}\nCompany Name: {company_name}\nLink: {link}"
         try:
             if check_messages_in_discord([message], channel_id):
                 send_message_to_channel(channel_id, message)
