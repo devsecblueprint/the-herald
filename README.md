@@ -1,5 +1,13 @@
 # DSB Discord Bot - The Herald
 
+![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2Fdevsecblueprint%2Fdiscord-bot&countColor=%23ffbe00)
+![License](https://img.shields.io/github/license/devsecblueprint/discord-bot?style=for-the-badge)
+![Last Commit](https://img.shields.io/github/last-commit/devsecblueprint/discord-bot?style=for-the-badge)
+![Issues](https://img.shields.io/github/issues/devsecblueprint/discord-bot?style=for-the-badge)
+![Pull Requests](https://img.shields.io/github/issues-pr/devsecblueprint/discord-bot?style=for-the-badge)
+[![Discord](https://img.shields.io/discord/1269864144903864381?style=for-the-badge&logo=discord&color=B4BEFE&logoColor=B4BEFE&labelColor=302D41)](https://discord.gg/enMmUNq8jc)
+
+
 <p align="center">
   <img src="./docs/imgs/the_herald.jpg" alt="The Herald Image" />
 </p>
@@ -7,7 +15,6 @@
 ## Overview... in a mystical sense
 
 The Herald is the ever-watchful and enigmatic bot, designed to guide, inform, and protect the DSB community in the sprawling digital world. True to its name, The Herald serves as a messenger and beacon, delivering essential updates and insights to empower users on their DevSecOps journey.
-
 
 **Responsibilities of The Herald:**
 
