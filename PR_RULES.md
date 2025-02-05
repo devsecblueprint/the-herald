@@ -84,4 +84,3 @@ Thank you for contributing to **The Herald** and supporting **DevSecOps educatio
 
 ---
 
-Would you like any modifications or additional details included?
