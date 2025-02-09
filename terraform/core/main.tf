@@ -263,6 +263,7 @@ module "discord_bot" {
     "CONTENT_CORNER_CHANNEL_NAME" : "📹-content-corner"
     "JOB_BOARD_CHANNEL_NAME" : "🏢-job-board"
     "ACTIVELY_HIRING_ROLE_ID" : "1329874561818165309"
+    "NOTIFY_ROLE_ID" : "1338013529843826728"
   }
 
   create_permission    = true

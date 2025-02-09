@@ -22,6 +22,7 @@ CONTENT_CORNER_CHANNEL_NAME = os.environ["CONTENT_CORNER_CHANNEL_NAME"]
 NEWSLETTER_CHANNEL_NAME = os.environ["NEWSLETTER_CHANNEL_NAME"]
 JOB_BOARD_CHANNEL_NAME = os.environ["JOB_BOARD_CHANNEL_NAME"]
 ACTIVELY_HIRING_ROLE_ID = os.environ["ACTIVELY_HIRING_ROLE_ID"]
+NOTIFY_ROLE_ID = os.environ["NOTIFY_ROLE_ID"]
 
 # Logging Configuration
 logging.getLogger().setLevel(logging.INFO)
@@ -135,7 +136,7 @@ def process_video(body: str, channel_id: str):
     if payload is None:
         return "There was an issue processing the XML.", 500
 
-    message = f"Hey @everyone - Check out Damien's latest video - {payload['videoName']} {payload['videoUrl']}"
+    message = f"Hey <@&{NOTIFY_ROLE_ID}> - Check out Damien's latest video - {payload['videoName']} {payload['videoUrl']}"
     response = dynamodb_client.get_item(
         TableName=TABLE_ARN,
         Key={
