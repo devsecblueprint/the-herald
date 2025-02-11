@@ -259,7 +259,7 @@ module "discord_bot" {
     "DISCORD_GUILD_ID" : var.DISCORD_GUILD_ID
     "DISCORD_TOKEN_PARAMETER" : module.discord_token.name
     "DYNAMODB_TABLE_ARN" : aws_dynamodb_table.discord_bot_table.arn
-    "NEWSLETTER_CHANNEL_NAME" : "📰-security-news"
+    "NEWSLETTER_CHANNEL_NAME" : "🔐-security-news"
     "CONTENT_CORNER_CHANNEL_NAME" : "📹-content-corner"
     "JOB_BOARD_CHANNEL_NAME" : "🏢-job-board"
     "ACTIVELY_HIRING_ROLE_ID" : "1329874561818165309"
