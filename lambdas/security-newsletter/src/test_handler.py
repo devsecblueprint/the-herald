@@ -1,8 +1,17 @@
+"""
+This module contains the unit tests for the handler module.
+"""
+
 import unittest
 from handler import NewsFeedFetcher, get_latest_article_with_timezone
 from constants import FEEDS
 
+
 class TestNewsFeedFetcher(unittest.TestCase):
+    """
+    This class contains the unit tests for the NewsFeedFetcher class.
+    """
+
     def test_fetch_and_parse_dates(self):
         """
         Test the functionality of fetching feeds.
@@ -10,7 +19,9 @@ class TestNewsFeedFetcher(unittest.TestCase):
 
         all_articles = []
         for feed_info in FEEDS:
-            fetcher = NewsFeedFetcher(feed_info["name"], feed_info["url"])
+            fetcher = NewsFeedFetcher(
+                feed_info["name"], feed_info["url"], feed_info["channel_name"]
+            )
             try:
                 articles = fetcher.fetch_articles()
                 all_articles.extend(articles)
@@ -22,6 +33,7 @@ class TestNewsFeedFetcher(unittest.TestCase):
         print(f"Today's articles: {len(latest_articles)}")
 
         self.assertGreater(len(latest_articles), 0, "No articles were fetched.")
+
 
 if __name__ == "__main__":
     unittest.main()

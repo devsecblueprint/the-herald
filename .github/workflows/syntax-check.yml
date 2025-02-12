@@ -18,7 +18,7 @@ jobs:
         run: pip install pylint # Install your Python dependencies
 
       - name: Lint Check
-        run: pylint lambdas/ --disable import-error
+        run: pylint lambdas/
 
   format_check:
     runs-on: ubuntu-latest

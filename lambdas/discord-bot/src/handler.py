@@ -19,7 +19,6 @@ TOKEN_PARAMETER = os.environ["DISCORD_TOKEN_PARAMETER"]
 GUILD_ID = os.environ["DISCORD_GUILD_ID"]
 TABLE_ARN = os.environ["DYNAMODB_TABLE_ARN"]
 CONTENT_CORNER_CHANNEL_NAME = os.environ["CONTENT_CORNER_CHANNEL_NAME"]
-NEWSLETTER_CHANNEL_NAME = os.environ["NEWSLETTER_CHANNEL_NAME"]
 JOB_BOARD_CHANNEL_NAME = os.environ["JOB_BOARD_CHANNEL_NAME"]
 ACTIVELY_HIRING_ROLE_ID = os.environ["ACTIVELY_HIRING_ROLE_ID"]
 NOTIFY_ROLE_ID = os.environ["NOTIFY_ROLE_ID"]
@@ -66,7 +65,6 @@ def main(event, _):
 
     # Process newsletters in the Queue
     if event.get("source") == "aws.events":
-        channel_id = get_channel_id(NEWSLETTER_CHANNEL_NAME)
         processed_messages = process_all_newsletters(channel_id)
         logging.info("Total # of Processed Newsletter Messages: %s", processed_messages)
 
@@ -170,7 +168,7 @@ def process_video(body: str, channel_id: str):
     return "Message already exist in the Discord channel."
 
 
-def process_all_newsletters(channel_id: str):
+def process_all_newsletters():
     """
     Processes all newsletters in the DynamoDB table,
     and clears them all out once it's done.
@@ -189,8 +187,10 @@ def process_all_newsletters(channel_id: str):
 
     for item in items:
         link = item["link"]["S"]
+        channel_name = item["channelName"]["S"]
         logging.info("Link: %s", link)
         try:
+            channel_id = get_channel_id(channel_name)
             if check_messages_in_discord([link], channel_id):
                 send_message_to_channel(
                     channel_id,

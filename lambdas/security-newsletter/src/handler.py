@@ -1,3 +1,7 @@
+"""
+This module contains the main entry point for the Lambda function.
+"""
+
 import logging
 from datetime import datetime, timedelta
 import boto3
@@ -8,8 +12,13 @@ from constants import ARTIFACT_TYPE, TABLE_ARN, FEEDS
 # Logging Configuration
 logging.getLogger().setLevel(logging.INFO)
 
+
 class NewsFeedFetcher:
-    def __init__(self, feed_name, feed_url):
+    """
+    A class to fetch articles from an RSS feed.
+    """
+
+    def __init__(self, feed_name, feed_url, channel_name):
         """
         Initialize the RSS feed fetcher with a name and feed URL.
         :param feed_name: A descriptive name for the feed (e.g., "Bleeping Computer")
@@ -17,6 +26,7 @@ class NewsFeedFetcher:
         """
         self.feed_name = feed_name
         self.feed_url = feed_url
+        self.channel_name = channel_name
 
     def fetch_articles(self):
         """
@@ -25,7 +35,9 @@ class NewsFeedFetcher:
         """
         feed = feedparser.parse(self.feed_url)
         if feed.bozo:
-            raise ValueError(f"Error parsing feed '{self.feed_name}': {feed.bozo_exception}")
+            raise ValueError(
+                f"Error parsing feed '{self.feed_name}': {feed.bozo_exception}"
+            )
 
         articles = []
         for entry in feed.entries:
@@ -35,12 +47,13 @@ class NewsFeedFetcher:
                     "link": entry.link,
                     "published": entry.get("published", "N/A"),
                     "summary": entry.get("summary", "N/A"),
+                    "channel_name": self.channel_name,
                 }
             )
         return articles
 
     def __repr__(self):
-        return f"NewsFeedFetcher(feed_name='{self.feed_name}', feed_url='{self.feed_url}')"
+        return f"NewsFeedFetcher(feed_name='{self.feed_name}', feed_url='{self.feed_url}', channel_name='{self.channel_name}')"
 
 
 def main(event, _):
@@ -52,13 +65,17 @@ def main(event, _):
 
     all_articles = []
     for feed_info in FEEDS:
-        fetcher = NewsFeedFetcher(feed_info["name"], feed_info["url"])
+        fetcher = NewsFeedFetcher(
+            feed_info["name"], feed_info["url"], feed_info["channel_name"]
+        )
         try:
             articles = fetcher.fetch_articles()
-            logging.info(f"Fetched {len(articles)} articles from {feed_info['name']}.")
+            logging.info(
+                "Fetched %s articles from %s.", {len(articles)}, {feed_info["name"]}
+            )
             all_articles.extend(articles)
         except ValueError as e:
-            logging.error(f"Error fetching articles from {feed_info['name']}: {e}")
+            logging.error("Error fetching articles from %s: %s", feed_info["name"], e)
 
     # Get today's articles from the combined list
     latest_articles = get_latest_article_with_timezone(all_articles)
@@ -66,9 +83,11 @@ def main(event, _):
     logging.info("Latest articles: %s", latest_articles)
 
     # Extract links from all articles
-    newsletter_links = [article["link"] for article in latest_articles]
+    newsletter_info = [
+        (article["link"], article["channel_name"]) for article in latest_articles
+    ]
 
-    return publish_message_to_table(newsletter_links)
+    return publish_message_to_table(newsletter_info)
 
 
 def get_latest_article_with_timezone(articles, timezone_str="UTC"):
@@ -94,60 +113,25 @@ def get_latest_article_with_timezone(articles, timezone_str="UTC"):
     return todays_articles
 
 
-def fetch_bleeping_computer_rss(feed_url="https://www.bleepingcomputer.com/feed/"):
-    """Fetch articles from the Bleeping Computer RSS feed."""
-    feed = feedparser.parse(feed_url)
-    if feed.bozo:
-        raise ValueError(f"Error parsing feed: {feed.bozo_exception}")
-    articles = []
-    for entry in feed.entries:
-        articles.append(
-            {
-                "title": entry.title,
-                "link": entry.link,
-                "published": entry.published,
-                "summary": entry.summary,
-            }
-        )
-    return articles
-
-
-def fetch_hacker_news_rss(feed_url="https://feeds.feedburner.com/TheHackersNews"):
-    """Fetch articles from The Hacker News RSS feed."""
-    feed = feedparser.parse(feed_url)
-    if feed.bozo:
-        raise ValueError(f"Error parsing feed: {feed.bozo_exception}")
-    h_articles = []
-    for entry in feed.entries:
-        h_articles.append(
-            {
-                "title": entry.title,
-                "link": entry.link,
-                "published": entry.published,
-                "summary": entry.summary,
-            }
-        )
-    return h_articles
-
-
-def publish_message_to_table(links: str):
+def publish_message_to_table(article_info):
     """
     Sends a message to the DynamoDB table.
     Returns a dictionary with the message and the message ID.
     """
     logging.info("Sending message to DynamoDB table")
     dynamodb_client = boto3.client("dynamodb")
-    for link in links:
-        logging.info("Link: %s", link)
+    for article in article_info:
+        logging.info("Link: %s", article)
         response = dynamodb_client.put_item(
             TableName=TABLE_ARN,
             Item={
                 "type": {"S": ARTIFACT_TYPE},
-                "link": {"S": link},
+                "link": {"S": article[0]},
+                "channelName": {"S": article[1]},
                 "expirationDate": {
                     "S": str(int((datetime.now() + timedelta(days=1)).timestamp()))
                 },
             },
         )
         logging.info("Response: %s", response)
-    return {"message": "Message has been logged to DynamoDB!", "links": links}
+    return {"message": "Message has been logged to DynamoDB!", "articles": article_info}
