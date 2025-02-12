@@ -1,17 +1,46 @@
-import os
 import logging
 from datetime import datetime, timedelta
-
 import boto3
 import feedparser
 import pytz
-
-
-TABLE_ARN = os.environ["DYNAMODB_TABLE_ARN"]
-ARTIFACT_TYPE = "newsletter"
+from constants import ARTIFACT_TYPE, TABLE_ARN, FEEDS
 
 # Logging Configuration
 logging.getLogger().setLevel(logging.INFO)
+
+class NewsFeedFetcher:
+    def __init__(self, feed_name, feed_url):
+        """
+        Initialize the RSS feed fetcher with a name and feed URL.
+        :param feed_name: A descriptive name for the feed (e.g., "Bleeping Computer")
+        :param feed_url: The RSS feed URL to fetch articles from
+        """
+        self.feed_name = feed_name
+        self.feed_url = feed_url
+
+    def fetch_articles(self):
+        """
+        Fetch articles from the specified RSS feed.
+        returns a list of dictionaries containing the articles
+        """
+        feed = feedparser.parse(self.feed_url)
+        if feed.bozo:
+            raise ValueError(f"Error parsing feed '{self.feed_name}': {feed.bozo_exception}")
+
+        articles = []
+        for entry in feed.entries:
+            articles.append(
+                {
+                    "title": entry.title,
+                    "link": entry.link,
+                    "published": entry.get("published", "N/A"),
+                    "summary": entry.get("summary", "N/A"),
+                }
+            )
+        return articles
+
+    def __repr__(self):
+        return f"NewsFeedFetcher(feed_name='{self.feed_name}', feed_url='{self.feed_url}')"
 
 
 def main(event, _):
@@ -21,12 +50,15 @@ def main(event, _):
     """
     logging.info("Event: %s", event)
 
-    # Fetch articles from both feeds
-    bleeping_articles = fetch_bleeping_computer_rss()
-    hacker_articles = fetch_hacker_news_rss()
-
-    # Combine articles from both feeds
-    all_articles = bleeping_articles + hacker_articles
+    all_articles = []
+    for feed_info in FEEDS:
+        fetcher = NewsFeedFetcher(feed_info["name"], feed_info["url"])
+        try:
+            articles = fetcher.fetch_articles()
+            logging.info(f"Fetched {len(articles)} articles from {feed_info['name']}.")
+            all_articles.extend(articles)
+        except ValueError as e:
+            logging.error(f"Error fetching articles from {feed_info['name']}: {e}")
 
     # Get today's articles from the combined list
     latest_articles = get_latest_article_with_timezone(all_articles)
