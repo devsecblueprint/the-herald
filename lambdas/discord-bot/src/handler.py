@@ -65,7 +65,7 @@ def main(event, _):
 
     # Process newsletters in the Queue
     if event.get("source") == "aws.events":
-        processed_messages = process_all_newsletters(channel_id)
+        processed_messages = process_all_newsletters()
         logging.info("Total # of Processed Newsletter Messages: %s", processed_messages)
 
         channel_id = get_channel_id(JOB_BOARD_CHANNEL_NAME)
