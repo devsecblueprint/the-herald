@@ -25,6 +25,6 @@ FEEDS = [
     {
         "name": "TechCrunch",
         "url": "https://techcrunch.com/feed",
-        "channel_name": "🪙-investment-news",
+        "channel_name": "⚙-tech-news",
     },
 ]
