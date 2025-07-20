@@ -38,6 +38,13 @@ spec:
         - name: the-herald
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          resources:
+            limits:
+              memory: "2Gi"
+              cpu: "500m"
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
           ports:
             - containerPort: {{ .Values.service.targetPort }}
           env:
