@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 from clients.discord import DiscordClient
+from utils.scheduler import JobScheduler
 
 
 # Launch Discord bot in a background thread using lifespan event handler
@@ -22,6 +23,9 @@ async def lifespan(_: FastAPI):
     Raises:
         ValueError: If the Discord token or guild ID is not found.
     """
+    # Start scheduler
+    JobScheduler().start()
+
     # Initialize Discord bot configuration
     discord_bot = DiscordClient()
     discord_thread = threading.Thread(target=discord_bot.run)
