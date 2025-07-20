@@ -13,13 +13,6 @@ permissions:
   packages: write
 
 jobs:
-#   lint-format:
-#     uses: ./.github/workflows/lint-format.yml
-
-#   unit-sec-scan:
-#     uses: ./.github/workflows/unit-sec-test.yml
-#  #   needs: lint-format
-
   push-docker-image:
     uses: ./.github/workflows/push-docker-image.yml
-#    needs: unit-sec-scan
+    secrets: inherit
