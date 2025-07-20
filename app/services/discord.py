@@ -3,10 +3,16 @@ DiscordService is responsible for interacting with the Discord API.
 It provides methods to get channel IDs and check messages in a Discord channel.
 """
 
+import os
 import time
 import json
 import requests
+from dotenv import load_dotenv
 from config.logger import LoggerConfig
+from utils.secrets import VaultSecretsLoader
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class DiscordService:
@@ -18,10 +24,23 @@ class DiscordService:
         guild_id (int): ID of the Discord guild (server) to interact with.
     """
 
-    def __init__(self, token: str, guild_id: int):
+    def __init__(self):
         self.logger = LoggerConfig(__name__).get_logger()
-        self.token = token
-        self.guild_id = guild_id
+        self.token = VaultSecretsLoader().load_secret("discord-token") or os.getenv(
+            "DISCORD_TOKEN"
+        )
+
+        if not self.token:
+            raise ValueError(
+                "Discord token not found. Set DISCORD_TOKEN environment variable or use Vault secrets."
+            )
+
+        if not os.getenv("DISCORD_GUILD_ID"):
+            raise ValueError(
+                "Discord guild ID not found. Set DISCORD_GUILD_ID environment variable."
+            )
+
+        self.guild_id = int(os.getenv("DISCORD_GUILD_ID"))
 
     def get_channel_id(self, channel_name: str) -> int:
         """
