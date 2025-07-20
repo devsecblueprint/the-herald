@@ -7,10 +7,11 @@
 ![Pull Requests](https://img.shields.io/github/issues-pr/devsecblueprint/discord-bot?style=for-the-badge)
 [![Discord](https://img.shields.io/discord/1269864144903864381?style=for-the-badge&logo=discord&color=B4BEFE&logoColor=B4BEFE&labelColor=302D41)](https://discord.gg/enMmUNq8jc)
 
-
 <p align="center">
   <img src="./docs/imgs/the_herald.jpg" alt="The Herald Image" />
 </p>
+
+> **NOTE**: This is a current work in progress.
 
 ## Overview... in a mystical sense
 

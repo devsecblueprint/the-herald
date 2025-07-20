@@ -1,0 +1,9 @@
+apiVersion: v2
+name: the-herald
+description: A Helm chart for deploying The Herald application
+maintainers:
+  - name: Damien Burks
+    email: damien@devsecblueprint.com
+type: application
+version: 0.1.0
+appVersion: 1.0.0

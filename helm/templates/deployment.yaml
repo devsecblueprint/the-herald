@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app: the-herald
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: the-herald
+  template:
+    metadata:
+      labels:
+        app: the-herald
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "the-herald"
+
+        # Redis credentials
+        vault.hashicorp.com/agent-inject-secret-redis-password: "kv/data/secret/redis"
+        vault.hashicorp.com/agent-inject-template-redis-password: |
+          {{`{{- with secret "kv/data/secret/redis" -}}`}}
+          {{`{{ .Data.data.password }}`}}
+          {{`{{- end }}`}}
+
+        # Discord Token credentials
+        vault.hashicorp.com/agent-inject-secret-discord-token: "kv/data/secret/the-herald/discord-token"
+        vault.hashicorp.com/agent-inject-template-discord-token: |
+          {{`{{- with secret "kv/data/secret/the-herald/discord-token" -}}`}}
+          {{`{{ .Data.data.token }}`}}
+          {{`{{- end }}`}}
+        
+        restartedAt: "{{ now | date "2006-01-02T15:04:05Z07:00" }}"
+    spec:
+      serviceAccountName: the-herald
+      automountServiceAccountToken: true
+      containers:
+        - name: the-herald
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.targetPort }}
+          env:
+            - name: BASH_ENV
+              value: /vault/secrets/config
+            - name: DISCORD_GUILD_ID
+              value: "1269864144903864381"
+            - name: DISCORD_COMMUNITY_MANAGER_ROLE_ID
+              value: "1321329155236958220"
