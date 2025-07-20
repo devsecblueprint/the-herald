@@ -193,13 +193,7 @@ class DiscordService:
                     self.guild_id,
                     event["id"],
                 )
-                self.logger.info("Event users: %s", event["user_count"])
-                self.logger.info(
-                    "Event description: %s",
-                    event.get("description", "No description provided"),
-                )
-                self.logger.info("Event privacy level: %s", event["privacy_level"])
-
+                
                 event_id = event["id"]
                 users_url = f"https://discord.com/api/v10/guilds/{self.guild_id}/scheduled-events/{event_id}/users?limit=100"
                 users_resp = requests.get(users_url, headers=headers, timeout=10)
