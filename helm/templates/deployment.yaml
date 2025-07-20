@@ -35,18 +35,18 @@ spec:
         vault.hashicorp.com/agent-inject-secret-google-credentials: "kv/data/secret/the-herald/google-credentials"
         vault.hashicorp.com/agent-inject-template-google-credentials: |
           {{`{{- with secret "kv/data/secret/the-herald/google-credentials" -}}`}}
-          type={{ .Data.data.type }}
-          project_id={{ .Data.data.project_id }}
-          private_key_id={{ .Data.data.private_key_id }}
-          private_key={{ .Data.data.private_key | replace "\n" "\\n" }}
-          client_email={{ .Data.data.client_email }}
-          client_id={{ .Data.data.client_id }}
-          auth_uri={{ .Data.data.auth_uri }}
-          token_uri={{ .Data.data.token_uri }}
-          auth_provider_x509_cert_url={{ .Data.data.auth_provider_x509_cert_url }}
-          client_x509_cert_url={{ .Data.data.client_x509_cert_url }}
-          universe_domain={{ .Data.data.universe_domain }}
-          {{`{{- end }}`}}
+          {{`type={{ .Data.data.type }}`}}
+          {{`project_id={{ .Data.data.project_id }}`}}
+          {{`private_key_id={{ .Data.data.private_key_id }}`}}
+          {{`private_key={{ .Data.data.private_key }}`}}
+          {{`client_email={{ .Data.data.client_email }}`}}
+          {{`client_id={{ .Data.data.client_id }}`}}
+          {{`auth_uri={{ .Data.data.auth_uri }}`}}
+          {{`token_uri={{ .Data.data.token_uri }}`}}
+          {{`auth_provider_x509_cert_url={{ .Data.data.auth_provider_x509_cert_url }}`}}
+          {{`client_x509_cert_url={{ .Data.data.client_x509_cert_url }}`}}
+          {{`universe_domain={{ .Data.data.universe_domain }}`}}
+          {{`{{- end }}`}} 
         
         restartedAt: "{{ now | date "2006-01-02T15:04:05Z07:00" }}"
     spec:
