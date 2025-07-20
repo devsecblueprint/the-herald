@@ -132,23 +132,3 @@ class FeedsConfig:
             List of unique Discord channel names
         """
         return list(set(feed.channel_name for feed in self.feeds))
-
-
-# Example usage:
-if __name__ == "__main__":
-    # Load configuration from YAML
-    try:
-        config = FeedsConfig.from_yaml()
-        print(f"Loaded {len(config.feeds)} feeds:")
-
-        for feed in config.feeds:
-            print(f"  - {feed.name} -> {feed.channel_name}")
-
-        # Example: Get all security news feeds
-        security_feeds = config.get_feeds_by_channel("🔐-security-news")
-        print(f"\nSecurity feeds: {len(security_feeds)}")
-        for feed in security_feeds:
-            print(f"  - {feed.name}: {feed.url}")
-
-    except Exception as e:
-        print(f"Error loading configuration: {e}")

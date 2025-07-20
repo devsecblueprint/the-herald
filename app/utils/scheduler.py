@@ -5,6 +5,7 @@ It initializes the job scheduler, adds jobs based on configuration, and provides
 """
 
 from apscheduler.schedulers.background import BackgroundScheduler
+from services.discord import DiscordService
 from config.logger import LoggerConfig
 
 from services.newsletter import NewsletterService
@@ -38,6 +39,15 @@ class JobScheduler:
             replace_existing=True,
         )
         self.logger.info("Adding job to publish latest articles every hour.")
+
+        # Check events with Discord
+        self.bg_scheduler.add_job(
+            DiscordService().list_scheduled_events_and_notify,
+            trigger="interval",
+            minutes=1,  # Run every minute
+            id="minute_discord_events_job",
+            replace_existing=True,
+        )
 
         # Start the background scheduler
         self.bg_scheduler.start()
