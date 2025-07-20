@@ -1,0 +1,79 @@
+name: Unit Testing & Security Scanning
+# This workflow runs unit tests and security scans on the Docker image.
+
+on:
+  workflow_call:
+
+jobs:
+  # Run unit test cases for the Docker image
+  testing_phase:
+    name: Run unit test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      # - name: Run tests
+      #   run: pytest tests/
+
+  # Scan the contianer and lists all security vulnerabilities
+  trivy_scans:
+    name: Run Trivy security scanner against the image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker Image
+        run: |
+          docker build -t the-advisor:${{ github.sha }} .   ###- This section needed to be added becasue the image was not persisting between jobs--##
+
+      - name: Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: "the-advisor:${{ github.sha }}"
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "CRITICAL,HIGH"
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: "trivy-results.sarif"
+
+  # owasp_zap_scan:
+  #   runs-on: ubuntu-latest
+  #   name: app scan
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+
+  #     # Build and Tag Image
+  #     # Run Docker Image in detached mode
+  #     - name: Build Docker Image
+  #       run: |
+  #         docker build -t the-advisor:${{ github.sha }} .
+  #         docker run -d -p 8080:8080 the-advisor:${{ github.sha }}
+
+  #     - name: Wait for Docker container to be ready
+  #       run: sleep 30
+
+  #     - name: Confirm Docker container is running
+  #       run: docker ps
+
+  #     # Run OWASP ZAP scan
+  #     - name: zap scan
+  #       uses: zaproxy/action-api-scan@v0.9.0
+  #       with:
+  #         token: ${{ secrets.GITHUB_TOKEN }}
+  #         docker_name: "ghcr.io/zaproxy/zaproxy:stable"
+  #         format: openapi
+  #         target: "http://0.0.0.0:8080"
+  #         rules_file_name: ".zap/rules.tsv"
+  #         cmd_options: "-a"
+  #         allow_issue_writing: false

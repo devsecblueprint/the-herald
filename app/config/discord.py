@@ -1,27 +1,32 @@
-# services/discord_bot.py
+"""
+Discord bot configuration module.
+This module defines the DiscordConfig class, which is responsible for configuring and running a Discord bot.
+It initializes the bot with the necessary token and guild ID, registers event handlers, and provides a method to run the bot.
+"""
 
 import os
 import logging
-import time
-from io import BytesIO
 from dotenv import load_dotenv
 from discord.ext import commands
-from discord import Intents, Interaction, Object, Attachment, File, User
+from discord import Intents, Object
+from utils.secrets import VaultSecretsLoader
 
-from PyPDF2 import PdfReader
-from src.utils import Utils
-from src.services.prompt import PromptBuilder
-from src.services.resume import ResumeReviewService
-from utils import VaultSecretsLoader
-
+# Load environment variables from .env file
 load_dotenv()
 
+# Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
 
-class DiscordBotClient:
+class DiscordConfig:
+    """
+    Discord bot configuration class.
+    This class initializes the Discord bot with the token and guild ID.
+    It registers event handlers and provides a method to run the bot.
+    """
+
     def __init__(self):
         self.token = VaultSecretsLoader().load_secret("discord-token") or os.getenv(
             "DISCORD_TOKEN"
@@ -43,6 +48,11 @@ class DiscordBotClient:
         self._register_events()
 
     def _register_events(self):
+        """
+        Register event handlers for the Discord bot.
+        This method registers the on_ready event to log when the bot is ready and sync commands to the guild.
+        """
+
         @self.bot.event
         async def on_ready():
             logging.info(f"Logged in as {self.bot.user.name} (ID: {self.bot.user.id})")
@@ -53,4 +63,8 @@ class DiscordBotClient:
                 logging.error(f"Failed to sync commands: {e}")
 
     def run(self):
+        """
+        Run the Discord bot.
+        This method starts the bot using the token provided during initialization.
+        """
         self.bot.run(self.token)

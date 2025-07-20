@@ -1,9 +1,11 @@
 apiVersion: v2
 name: the-herald
-description: A Helm chart for deploying The Herald application
+description: The Herald is a Discord bot that provides various utilities and features for Discord servers.
+home: https://github.com/devsecblueprint/the-herald
+icon: https://raw.githubusercontent.com/devsecblueprint/the-herald/main/app/static/icon.png
 maintainers:
   - name: Damien Burks
     email: damien@devsecblueprint.com
 type: application
-version: 0.1.0
+version: 1.0.0
 appVersion: 1.0.0

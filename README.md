@@ -11,7 +11,7 @@
   <img src="./docs/imgs/the_herald.jpg" alt="The Herald Image" />
 </p>
 
-> **NOTE**: This is a current work in progress.
+> **NOTE**: This entire application is undergoing massive refactoring efforts.
 
 ## Overview... in a mystical sense
 
