@@ -1,5 +1,4 @@
 """
-logger.py --- IGNORE ---
 This module defines the LoggerConfig class, which is responsible for configuring and providing a logger instance.
 It initializes the logger with a specified class name and provides a method to retrieve the logger instance.
 """

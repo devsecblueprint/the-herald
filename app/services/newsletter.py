@@ -66,7 +66,7 @@ class NewsletterService:
         for newsletter in newsletter_info:
             link = newsletter[0]
             channel_name = newsletter[1]
-            self.logger.info("Link: %s", link)
+            self.logger.info("Processing link: %s for channel: %s", link, channel_name)
             try:
                 channel_id = self.discord_service.get_channel_id(channel_name)
                 if self.discord_service.check_messages_in_discord([link], channel_id):
@@ -75,19 +75,26 @@ class NewsletterService:
                         link,
                     )
 
+                    self.logger.info("Message sent to channel: %s", channel_name)
+                    self.redis_client.set(
+                        f"newsletter:{self.channel_name}",
+                        newsletter_info,
+                        expiration=24 * 60 * 60,  # Store for 24 hours
+                    )
+                    self.logger.info(
+                        "Stored %s in Redis for channel: %s",
+                        newsletter_info,
+                        channel_name,
+                    )
+                else:
+                    self.logger.info(
+                        "Message already exists in channel: %s", channel_name
+                    )
+
                 time.sleep(3)  # Small delay to prevent rate limiting
             except Exception as e:
                 self.logger.error("Error processing message: %s", str(e))
                 continue
-
-        # Store the newsletter info in Redis
-        self.redis_client.set(
-            f"newsletter:{self.channel_name}",
-            newsletter_info,
-            expiration=24 * 60 * 60,  # Store for 24 hours
-        )
-
-        self.logger.info("Stored newsletter info in Redis")
 
     def get_latest_article_with_timezone(self, articles, timezone_str="UTC"):
         """

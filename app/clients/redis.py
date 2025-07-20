@@ -1,6 +1,6 @@
 """
-Redis Client Module
-This module provides a Redis client for connecting to a Redis database.
+This module defines the RedisClient class, which is responsible for connecting to and interacting with a Redis database.
+It provides methods to connect to the Redis server, check the connection, and close the connection.
 """
 
 import logging
