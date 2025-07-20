@@ -34,6 +34,7 @@ spec:
         restartedAt: "{{ now | date "2006-01-02T15:04:05Z07:00" }}"
     spec:
       serviceAccountName: the-herald
+      automountServiceAccountToken: false
       containers:
         - name: the-herald
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
