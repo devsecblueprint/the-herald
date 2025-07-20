@@ -20,7 +20,7 @@ logging.basicConfig(
 )
 
 
-class DiscordConfig:
+class DiscordClient:
     """
     Discord bot configuration class.
     This class initializes the Discord bot with the token and guild ID.

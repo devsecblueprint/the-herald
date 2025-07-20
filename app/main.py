@@ -7,7 +7,7 @@ import uvicorn
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
-from config.discord import DiscordConfig
+from app.clients.discord import DiscordConfig
 
 
 # Launch Discord bot in a background thread using lifespan event handler
@@ -23,6 +23,7 @@ async def lifespan(_: FastAPI):
     Raises:
         ValueError: If the Discord token or guild ID is not found.
     """
+    # Initialize Discord bot configuration
     discord_bot = DiscordConfig()
     discord_thread = threading.Thread(target=discord_bot.run)
     discord_thread.start()
@@ -33,6 +34,8 @@ async def lifespan(_: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 if __name__ == "__main__":
+    # Run the FastAPI application with Uvicorn server
+    # This will start the application on the specified host and port.
     uvicorn.run(
         app,
         host="0.0.0.0",
