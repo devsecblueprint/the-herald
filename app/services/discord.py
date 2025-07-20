@@ -171,8 +171,14 @@ class DiscordService:
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         events = response.json()
+        self.logger.info("Scheduled events fetched successfully: %s", events)
+
         now = datetime.now(timezone.utc)
         reminder_delta = timedelta(hours=1)
+
+        self.logger.info("Checking scheduled events in guild ID: %s", self.guild_id)
+        self.logger.info("Current time: %s", now.isoformat())
+        self.logger.info("Time delta for reminders: %s", time_delta)
 
         for event in events:
             start_str = event[
