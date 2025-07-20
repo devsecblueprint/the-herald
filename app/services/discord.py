@@ -1,9 +1,11 @@
 import requests
 
+from config.logger import LoggerConfig
 
 class DiscordService:
 
     def __init__(self, token: str, guild_id: int):
+        self.logger = LoggerConfig(__name__).get_logger()
         self.token = token
         self.guild_id = guild_id
 
@@ -26,7 +28,7 @@ class DiscordService:
             f"Channel '{channel_name}' not found in guild {self.guild_id}."
         )
 
-    def check_messages_in_discord(messages: list, channel_id: str):
+    def check_messages_in_discord(self,messages: list, channel_id: str):
         """
         Checks if a message exists in the discord channel and returns messages that
         are not in the discord channel.
@@ -45,11 +47,11 @@ class DiscordService:
         message_contents = [
             channel_message["content"] for channel_message in channel_messages
         ]
-        logging.info("Message contents: %s", message_contents)
+        self.logger.info("Message contents: %s", message_contents)
 
         for message in messages:
             if message not in message_contents:
-                logging.info("This message does not exist: %s", message)
+                self.logger.info("This message does not exist: %s", message)
                 new_messages.append(message)
 
         return new_messages

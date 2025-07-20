@@ -46,5 +46,5 @@ spec:
               value: /vault/secrets/config
             - name: DISCORD_GUILD_ID
               value: "1269864144903864381"
-            - name: DISCORD_COMMUNITY_MANAGER_ROLE_ID
-              value: "1321329155236958220"
+            - name: NOTIFY_ROLE_ID
+              value: "1338013529843826728"

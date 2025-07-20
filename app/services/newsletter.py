@@ -60,7 +60,7 @@ class NewsletterService:
         self.redis_client.set(
             f"newsletter:{self.channel_name}",
             newsletter_info,
-            ex=604800,  # 7 days expiration
+            expiration=24 * 60 * 60,  # Store for 24 hours
         )
 
         self.logger.info("Stored newsletter info in Redis")
