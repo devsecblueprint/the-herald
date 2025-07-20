@@ -37,7 +37,7 @@ spec:
           {{`{{- with secret "kv/data/secret/the-herald/google-credentials" -}}`}}
           {{`type={{ .Data.data.type }}`}}
           {{`project_id={{ .Data.data.project_id }}`}}
-          {{`private_key={{ replace "\n" "\\n" .Data.data.private_key }}`}}
+          {{`private_key={{ .Data.data.private_key }}`}}
           {{`client_email={{ .Data.data.client_email }}`}}
           {{`client_id={{ .Data.data.client_id }}`}}
           {{`auth_uri={{ .Data.data.auth_uri }}`}}
