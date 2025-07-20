@@ -33,11 +33,11 @@ class JobScheduler:
         self.bg_scheduler.add_job(
             NewsletterService().publish_latest_articles,
             trigger="interval",
-            minutes=1,  # Run every minute
+            minutes=60,  # Run every hour
             id="daily_newsletter_job",
             replace_existing=True,
         )
-        self.logger.info("Adding job to publish latest articles every minute.")
+        self.logger.info("Adding job to publish latest articles every hour.")
 
         # Start the background scheduler
         self.bg_scheduler.start()
