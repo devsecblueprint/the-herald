@@ -7,6 +7,8 @@ It initializes the job scheduler, adds jobs based on configuration, and provides
 from apscheduler.schedulers.background import BackgroundScheduler
 from config.logger import LoggerConfig
 
+from services.newsletter import NewsletterService
+
 
 class JobScheduler:
     """
@@ -27,6 +29,19 @@ class JobScheduler:
         Start the job scheduler and add jobs to it.
         This method initializes the scheduler and adds jobs based on the configuration.
         """
+        # Add NewsletterService job to the scheduler
+        self.bg_scheduler.add_job(
+            NewsletterService().publish_latest_articles,
+            trigger="interval",
+            minutes=1,  # Run every minute
+            id="daily_newsletter_job",
+            replace_existing=True,
+        )
+        self.logger.info("Adding job to publish latest articles every minute.")
+
+        # Start the background scheduler
+        self.bg_scheduler.start()
+        self.logger.info("Job scheduler started and jobs added.")
 
     def shutdown(self):
         """

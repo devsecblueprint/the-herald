@@ -1,3 +1,9 @@
+"""
+This module defines the NewsletterService class, which is responsible for fetching articles from RSS feeds and publishing them to a Discord channel.
+It initializes the DiscordService, fetches articles from configured feeds, and publishes the latest articles to the specified Discord channel.
+It also handles timezone conversion for article publication dates.
+"""
+
 import time
 from datetime import datetime
 import feedparser
@@ -10,16 +16,34 @@ from models import FeedsConfig, Feed
 
 
 class NewsletterService:
-    def __init__(self, channel_name: str):
+    """
+    NewsletterService is responsible for fetching articles from RSS feeds and publishing them to a Discord channel.
+    It initializes the DiscordService, fetches articles from configured feeds, and publishes the latest articles to the specified Discord channel.
+    It also handles timezone conversion for article publication dates.
+
+    Attributes:
+        discord_service (DiscordService): Service to interact with Discord API.
+        channel_name (str): Name of the Discord channel to publish articles.
+        redis_client (RedisClient): Redis client for caching and storing data.
+    """
+
+    def __init__(self):
         self.logger = LoggerConfig(__name__).get_logger()
         self.discord_service = DiscordService()
-        self.channel_name = channel_name
 
         # Initialize Redis client
         RedisClient().connect()
         self.redis_client = RedisClient().client
 
     def publish_latest_articles(self):
+        """
+        Fetches articles from configured RSS feeds and publishes the latest articles to the specified Discord channel.
+        It retrieves the articles, checks if they are already published in the Discord channel, and sends new articles.
+        It also stores the published articles in Redis for caching.
+        """
+        self.logger.info("Starting to publish latest articles...")
+
+        # Fetch all articles from configured feeds
         all_articles = []
 
         feeds = FeedsConfig.from_yaml().feeds
@@ -67,8 +91,21 @@ class NewsletterService:
 
     def get_latest_article_with_timezone(self, articles, timezone_str="UTC"):
         """
-        Get latest article(s) with a timezone.
+        Filters articles to get only those published today in the specified timezone.
+        Args:
+            articles (list): List of articles to filter.
+            timezone_str (str): Timezone string to filter articles by.
+        Returns:
+            list: List of articles published today in the specified timezone.
         """
+        self.logger.info(
+            "Filtering articles for today's date in timezone: %s", timezone_str
+        )
+
+        if not articles:
+            self.logger.warning("No articles provided for filtering.")
+            return []
+
         tz = pytz.timezone(timezone_str)
         today = datetime.now(tz).date()
         todays_articles = []
@@ -90,7 +127,13 @@ class NewsletterService:
     def _fetch_articles(self, feed: Feed) -> list:
         """
         Fetch articles from the specified RSS feed.
-        returns a list of dictionaries containing the articles
+        returns a list of dictionaries containing the articles.
+        Args:
+            feed (Feed): The Feed object containing the feed configuration.
+        Returns:
+            list: List of articles fetched from the feed.
+        Raises:
+            ValueError: If there is an error parsing the feed.
         """
         feed = feedparser.parse(feed.url)
         if feed.bozo:
