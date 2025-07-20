@@ -4,6 +4,8 @@ on:
   pull_request_target:
 
 jobs:
-  syntax_check:
-    if: github.repository_owner == 'devsecblueprint'
-    uses: ./.github/workflows/syntax-check.yml
+  lint-format:
+    uses: ./.github/workflows/lint-format.yml
+  unit-sec-scan:
+    uses: ./.github/workflows/unit-sec-test.yml
+    needs: lint-format

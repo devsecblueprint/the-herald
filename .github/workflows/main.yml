@@ -1,35 +1,18 @@
-name: "Default Workflow (main)"
-
+name: Main Workflow
 on:
   push:
     branches:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  id-token: write
+  packages: write
+
 jobs:
-  syntax-check:
-    uses: ./.github/workflows/syntax-check.yml
-  create-ecr-repositories:
-    needs:
-      - syntax-check
-    uses: ./.github/workflows/terraform-apply.yml
-    permissions:
-      contents: read
+  push-docker-image:
+    uses: ./.github/workflows/push-docker-image.yml
     secrets: inherit
-    with:
-      tf_workspace: "discord-bot-repositories"
-      config_directory: "./terraform/repositories"
-  publish-images:
-    uses: ./.github/workflows/docker-publish.yml
-    secrets: inherit
-    needs: create-ecr-repositories
-  create-core-infrastructure:
-    needs:
-      - publish-images
-    uses: ./.github/workflows/terraform-apply.yml
-    permissions:
-      contents: read
-    secrets: inherit
-    with:
-      tf_workspace: "discord-bot"
-      config_directory: "./terraform/core"

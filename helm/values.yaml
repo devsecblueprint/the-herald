@@ -1,0 +1,27 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/devsecblueprint/the-herald
+  tag: latest
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  className: nginx
+  enabled: true
+  host: the-herald.dsb-hub.local
+  annotations:
+    cert-manager.io/cluster-issuer: mkcert-issuer
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+  tls:
+    enabled: true
+    host: the-herald.dsb-hub.local  
+    secretName: the-herald-cert-tls
+
+resources: {}
