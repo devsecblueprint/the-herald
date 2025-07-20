@@ -4,11 +4,13 @@ This module defines the JobScheduler class, which is responsible for managing sc
 It initializes the job scheduler, adds jobs based on configuration, and provides methods to start and shutdown the scheduler.
 """
 
+from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from services.discord import DiscordService
 from config.logger import LoggerConfig
 
 from services.newsletter import NewsletterService
+from services.calendar import GoogleCalendarService
 
 
 class JobScheduler:
@@ -37,6 +39,7 @@ class JobScheduler:
             minutes=60,  # Run every hour
             id="hourly_newsletter_job",
             replace_existing=True,
+            next_run_time=datetime.now(),
         )
         self.logger.info("Adding job to publish latest articles every hour.")
 
@@ -47,6 +50,21 @@ class JobScheduler:
             minutes=1,  # Run every minute
             id="minute_discord_events_job",
             replace_existing=True,
+            next_run_time=datetime.now(),
+        )
+        self.logger.info("Adding job to check Discord events every minute.")
+
+        # Sync Discord events with Google Calendar
+        self.bg_scheduler.add_job(
+            GoogleCalendarService().sync_discord_events,
+            trigger="interval",
+            minutes=5,  # Run every 5 minutes
+            id="five_minute_sync_discord_events_job",
+            replace_existing=True,
+            next_run_time=datetime.now(),
+        )
+        self.logger.info(
+            "Adding job to sync Discord events with Google Calendar every 5 minutes."
         )
 
         # Start the background scheduler

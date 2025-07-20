@@ -1,8 +1,10 @@
 .env/
 .DS_Store
+test.py
 
 # Credentials
 .credentials/
+.credentials.json
 
 # Local .terraform directories
 **/.terraform/*

@@ -14,6 +14,15 @@ class RedisClient:
 
     This class provides methods to connect to and disconnect from a Redis instance.
     It uses asynchronous operations to ensure non-blocking behavior.
+    Attributes:
+        host (str): The hostname or IP address of the Redis server.
+        port (int): The port number of the Redis server.
+        password (str): The password for authenticating with the Redis server.
+        client (redis.Redis): The Redis client instance.
+    Methods:
+        connect: Connects to the Redis server.
+        close: Closes the connection to the Redis server.
+        ping: Checks if the Redis server is reachable.
     """
 
     def __init__(self, host="redis-oss-master.redis.svc.cluster.local", port=6379):

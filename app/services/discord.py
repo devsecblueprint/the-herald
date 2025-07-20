@@ -151,6 +151,27 @@ class DiscordService:
 
         time.sleep(3)  # Small delay to prevent rate limiting
 
+    def list_scheduled_events(self) -> list:
+        """
+        List scheduled events in the Discord guild.
+        Returns:
+            list: List of scheduled events in the guild.
+        Raises:
+            HTTPError: If the request to the Discord API fails.
+        """
+        url = f"https://discord.com/api/v10/guilds/{self.guild_id}/scheduled-events"
+        headers = {
+            "Authorization": f"Bot {self.token}",
+            "Content-Type": "application/json",
+        }
+
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        events = response.json()
+        self.logger.info("Scheduled events fetched successfully: %s", events)
+
+        return events
+
     def list_scheduled_events_and_notify(
         self, time_delta: timedelta = timedelta(minutes=1)
     ) -> None:
@@ -163,15 +184,7 @@ class DiscordService:
         Raises:
             HTTPError: If the request to the Discord API fails.
         """
-        url = f"https://discord.com/api/v10/guilds/{self.guild_id}/scheduled-events"
-        headers = {
-            "Authorization": f"Bot {self.token}",
-            "Content-Type": "application/json",
-        }
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        events = response.json()
-        self.logger.info("Scheduled events fetched successfully: %s", events)
+        events = self.list_scheduled_events()
 
         now = datetime.now(timezone.utc)
         reminder_delta = timedelta(hours=1)
@@ -199,7 +212,7 @@ class DiscordService:
                     self.guild_id,
                     event["id"],
                 )
-                
+
                 event_id = event["id"]
                 users_url = f"https://discord.com/api/v10/guilds/{self.guild_id}/scheduled-events/{event_id}/users?limit=100"
                 users_resp = requests.get(users_url, headers=headers, timeout=10)
