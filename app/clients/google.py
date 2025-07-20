@@ -31,6 +31,11 @@ class GoogleClient:
         credentials = VaultSecretsLoader().load_secret(
             "google-credentials"
         ) or os.getenv("GOOGLE_CREDENTIALS")
+
+        credentials["private_key"] = credentials.get("private_key", "").replace(
+            "\\n", "\n"
+        )
+
         if credentials is None:
             raise ValueError(
                 "Google credentials not found. Please set GOOGLE_CREDENTIALS environment variable or use Vault secrets."
