@@ -6,7 +6,6 @@ anyio==4.9.0
 APScheduler==3.11.0
 astroid==3.3.11
 attrs==25.3.0
-audioop-lts==0.2.1
 black==25.1.0
 cachetools==5.5.2
 certifi==2025.7.14

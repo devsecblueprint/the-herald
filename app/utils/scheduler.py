@@ -58,13 +58,13 @@ class JobScheduler:
         self.bg_scheduler.add_job(
             GoogleCalendarService().sync_discord_events,
             trigger="interval",
-            minutes=5,  # Run every 5 minutes
-            id="five_minute_sync_discord_events_job",
+            minutes=15,  # Run every 15 minutes
+            id="fifteen_minute_sync_discord_events_job",
             replace_existing=True,
             next_run_time=datetime.now(),
         )
         self.logger.info(
-            "Adding job to sync Discord events with Google Calendar every 5 minutes."
+            "Adding job to sync Discord events with Google Calendar every 15 minutes."
         )
 
         # Start the background scheduler

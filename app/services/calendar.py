@@ -161,7 +161,7 @@ class GoogleCalendarService:
 
         events = events_result.get("items", [])
         if not events:
-            print("No upcoming events found.")
+            self.logger.info("No upcoming events found.")
 
         return events
 
@@ -174,7 +174,7 @@ class GoogleCalendarService:
         for event in discord_events:
             self.logger.info(f"Syncing Discord event: {event['name']}")
             start_time = datetime.fromisoformat(
-                event["start"]["dateTime"].replace("Z", "+00:00")
+                event["scheduled_start_time"].replace("Z", "+00:00")
             )
 
             # Check if the event already exists in the calendar
@@ -204,8 +204,8 @@ class GoogleCalendarService:
                     )
 
                 # Check to see if the event needs to be updated based on time and location
-                if existing_event["start"][
-                    "dateTime"
+                if existing_event[
+                    "scheduled_start_time"
                 ] != start_time.isoformat() or existing_event.get(
                     "location"
                 ) != event.get(
