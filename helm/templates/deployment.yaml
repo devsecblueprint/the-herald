@@ -72,3 +72,5 @@ spec:
               value: "1269864144903864381"
             - name: NOTIFY_ROLE_ID
               value: "1338013529843826728"
+            - name: CALENDAR_ID
+              value: "c_c826be6689672ef7923d25ee3d55a9d6e1e71be3d0d8ad31b1e1885e3ae797fa@group.calendar.google.com"
