@@ -28,9 +28,9 @@ class GoogleClient:
     """
 
     def __init__(self):
-        credentials = VaultSecretsLoader.load_secret("google-credentials") or os.getenv(
-            "GOOGLE_CREDENTIALS"
-        )
+        credentials = VaultSecretsLoader().load_secret(
+            "google-credentials"
+        ) or os.getenv("GOOGLE_CREDENTIALS")
         if credentials is None:
             raise ValueError(
                 "Google credentials not found. Please set GOOGLE_CREDENTIALS environment variable or use Vault secrets."
