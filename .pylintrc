@@ -8,7 +8,7 @@ ignore-patterns=
 # Files or directories to be ignored. They should be base names, not paths.
 ignore=venv
 
-disable=import-error,broad-except,duplicate-code,line-too-long,too-many-function-args
+disable=import-error,broad-except,duplicate-code,line-too-long,too-many-function-args,redefined-outer-name,raise-missing-from
 
 [MESSAGES CONTROL]
 disable=
@@ -34,10 +34,6 @@ const-rgx=(([A-Z_][A-Z0-9_]*)|(__.*__))$
 
 [EXCEPTIONS]
 # Exceptions that will emit a warning when caught in a catch-all `except:` block.
-extend-default-ignore-exceptions=Exception,BaseException
 
 [IMPORTS]
 # Analyze imports themselves and their usage.
-
-# Allow imports to be nested inside functions.
-allow-import-inside-init=yes

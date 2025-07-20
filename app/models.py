@@ -2,10 +2,11 @@
 Data models for The Herald bot configuration and data structures.
 """
 
+import os
 from dataclasses import dataclass
 from typing import List
+
 import yaml
-import os
 
 
 @dataclass

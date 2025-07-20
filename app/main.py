@@ -3,10 +3,9 @@ Main entry point for the FastAPI application that integrates with a Discord bot.
 """
 
 import threading
+from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
-from contextlib import asynccontextmanager
-
 from clients.discord import DiscordClient
 
 

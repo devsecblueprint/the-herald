@@ -77,7 +77,7 @@ class NewsletterService:
 
                     self.logger.info("Message sent to channel: %s", channel_name)
                     self.redis_client.set(
-                        f"newsletter:{self.channel_name}",
+                        f"newsletter:{channel_name}",
                         newsletter_info,
                         expiration=24 * 60 * 60,  # Store for 24 hours
                     )
@@ -142,19 +142,19 @@ class NewsletterService:
         Raises:
             ValueError: If there is an error parsing the feed.
         """
-        feed = feedparser.parse(feed.url)
-        if feed.bozo:
+        feed_data = feedparser.parse(feed.url)
+        if feed_data.bozo:
             raise ValueError(f"Error parsing feed '{feed.name}': {feed.bozo_exception}")
 
         articles = []
-        for entry in feed.entries:
+        for entry in feed_data.entries:
             articles.append(
                 {
                     "title": entry.title,
                     "link": entry.link,
                     "published": entry.get("published", "N/A"),
                     "summary": entry.get("summary", "N/A"),
-                    "channel_name": self.channel_name,
+                    "channel_name": feed.channel_name,
                 }
             )
 
