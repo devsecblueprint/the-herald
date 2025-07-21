@@ -64,7 +64,7 @@ class DiscordService:
         base_delay = 1
         
         # Add a small delay before the first request to avoid rapid-fire requests
-        time.sleep(0.1)
+        time.sleep(3)
         
         for attempt in range(max_retries):
             try:
