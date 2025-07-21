@@ -150,8 +150,8 @@ class GoogleCalendarService:
             self.service.events()
             .list(
                 calendarId=self.calendar_id,
-                timeMin=time_min.isoformat() + "Z",
-                timeMax=time_max.isoformat() + "Z",
+                timeMin=time_min.isoformat().replace("+00:00", "Z"),
+                timeMax=time_max.isoformat().replace("+00:00", "Z"),
                 maxResults=max_results,
                 singleEvents=True,
                 orderBy="startTime",
