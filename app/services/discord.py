@@ -44,59 +44,67 @@ class DiscordService:
                 "Discord guild ID not found. Set DISCORD_GUILD_ID environment variable."
             )
 
-    def _make_request_with_retry(self, method: str, url: str, headers: dict, **kwargs) -> requests.Response:
+    def _make_request_with_retry(
+        self, method: str, url: str, headers: dict, **kwargs
+    ) -> requests.Response:
         """
         Make a request to Discord API with automatic retry on rate limits.
-        
+
         Args:
             method (str): HTTP method (GET, POST, etc.)
             url (str): Request URL
             headers (dict): Request headers
             **kwargs: Additional arguments for requests
-            
+
         Returns:
             requests.Response: The response object
-            
+
         Raises:
             requests.HTTPError: If request fails after retries
         """
         max_retries = 5
         base_delay = 1
-        
+
         # Add a small delay before the first request to avoid rapid-fire requests
-        time.sleep(0.1)
-        
+        time.sleep(3)
+
         for attempt in range(max_retries):
             try:
-                response = requests.request(method, url, headers=headers, timeout=10, **kwargs)
-                
+                response = requests.request(
+                    method, url, headers=headers, timeout=10, **kwargs
+                )
+
                 if response.status_code == 429:
                     # Rate limited - check if Discord provided retry-after header
-                    retry_after = response.headers.get('Retry-After')
+                    retry_after = response.headers.get("Retry-After")
                     if retry_after:
                         wait_time = int(retry_after)
-                        self.logger.warning(f"Rate limited. Waiting {wait_time} seconds as instructed by Discord.")
+                        self.logger.warning(
+                            f"Rate limited. Waiting {wait_time} seconds as instructed by Discord."
+                        )
                     else:
                         # Exponential backoff if no retry-after header
-                        wait_time = base_delay * (2 ** attempt)
-                        self.logger.warning(f"Rate limited. Using exponential backoff: {wait_time} seconds.")
-                    
+                        wait_time = base_delay * (2**attempt)
+                        self.logger.warning(
+                            f"Rate limited. Using exponential backoff: {wait_time} seconds."
+                        )
+
                     if attempt < max_retries - 1:  # Don't sleep on last attempt
                         time.sleep(wait_time)
                         continue
-                
+
                 response.raise_for_status()
                 return response
-                
+
             except requests.exceptions.RequestException as e:
                 self.logger.error(f"Request failed on attempt {attempt + 1}: {e}")
                 if attempt == max_retries - 1:
                     raise
-                
+
                 # Wait before retrying
-                wait_time = base_delay * (2 ** attempt)
+                wait_time = base_delay * (2**attempt)
                 time.sleep(wait_time)
-        
+
         raise requests.HTTPError(f"Failed to make request after {max_retries} attempts")
 
     def get_channel_id(self, channel_name: str) -> int:
@@ -186,7 +194,9 @@ class DiscordService:
         }
         data = {"content": message}
 
-        response = self._make_request_with_retry("POST", url, headers, data=json.dumps(data))
+        response = self._make_request_with_retry(
+            "POST", url, headers, data=json.dumps(data)
+        )
 
         if response.status_code == 200:
             self.logger.info("Message sent successfully to channel ID: %s", channel_id)
@@ -233,7 +243,7 @@ class DiscordService:
 
         now = datetime.now(timezone.utc)
         reminder_delta = timedelta(hours=1)
-        
+
         headers = {
             "Authorization": f"Bot {self.token}",
             "Content-Type": "application/json",
@@ -336,7 +346,9 @@ class DiscordService:
         msg_url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
         msg_data = {"content": message}
 
-        msg_resp = self._make_request_with_retry("POST", msg_url, headers, json=msg_data)
+        msg_resp = self._make_request_with_retry(
+            "POST", msg_url, headers, json=msg_data
+        )
         if msg_resp.status_code == 200:
             self.logger.info("DM sent successfully to user ID: %s", user_id)
         else:

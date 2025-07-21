@@ -181,11 +181,10 @@ class GoogleCalendarService:
 
             existing_events = self.list_events(
                 time_min=start_time - timedelta(minutes=5),  # small buffer
-                time_max=start_time + timedelta(days=90)
+                time_max=start_time + timedelta(days=90),
             )
             matching_event = next(
-                (e for e in existing_events if e.get("summary") == event["name"]),
-                None
+                (e for e in existing_events if e.get("summary") == event["name"]), None
             )
 
             if not matching_event:
@@ -196,7 +195,9 @@ class GoogleCalendarService:
                     description=event.get("description"),
                     location=event.get("location"),
                 )
-                self.logger.info(f"Added new event: {event['name']} at {start_time.isoformat()}")
+                self.logger.info(
+                    f"Added new event: {event['name']} at {start_time.isoformat()}"
+                )
             else:
                 # Check for any differences
                 google_start = datetime.fromisoformat(
@@ -209,9 +210,9 @@ class GoogleCalendarService:
                 discord_location = event.get("location", "")
 
                 needs_update = (
-                    google_start != start_time or
-                    google_description != discord_description or
-                    google_location != discord_location
+                    google_start != start_time
+                    or google_description != discord_description
+                    or google_location != discord_location
                 )
 
                 if needs_update:
@@ -222,7 +223,9 @@ class GoogleCalendarService:
                         description=discord_description,
                         location=discord_location,
                     )
-                    self.logger.info(f"Updated event: {event['name']} at {start_time.isoformat()}")
+                    self.logger.info(
+                        f"Updated event: {event['name']} at {start_time.isoformat()}"
+                    )
                 else:
                     self.logger.info(f"No changes needed for event: {event['name']}")
 
