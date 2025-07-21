@@ -150,8 +150,8 @@ class GoogleCalendarService:
             self.service.events()
             .list(
                 calendarId=self.calendar_id,
-                timeMin=time_min.isoformat() + "Z",
-                timeMax=time_max.isoformat() + "Z",
+                timeMin=time_min.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                timeMax=time_max.strftime("%Y-%m-%dT%H:%M:%SZ"),
                 maxResults=max_results,
                 singleEvents=True,
                 orderBy="startTime",
@@ -171,55 +171,59 @@ class GoogleCalendarService:
         This method should be called periodically to ensure the calendar is up-to-date.
         """
         discord_events = self.discord_service.list_scheduled_events()
+
         for event in discord_events:
             self.logger.info(f"Syncing Discord event: {event['name']}")
+
             start_time = datetime.fromisoformat(
                 event["scheduled_start_time"].replace("Z", "+00:00")
             )
 
-            # Check if the event already exists in the calendar
             existing_events = self.list_events(
-                time_min=start_time, time_max=start_time + timedelta(days=90)
+                time_min=start_time - timedelta(minutes=5),  # small buffer
+                time_max=start_time + timedelta(days=90)
             )
-            existing_events = [
-                e for e in existing_events if e.get("summary") == event["name"]
-            ]
+            matching_event = next(
+                (e for e in existing_events if e.get("summary") == event["name"]),
+                None
+            )
 
-            if not existing_events:
+            if not matching_event:
+                # Event doesn't exist, create it
                 self.add_event(
                     summary=event["name"],
                     start_time=start_time,
                     description=event.get("description"),
                     location=event.get("location"),
                 )
-                self.logger.info(
-                    f"Added new event: {event['name']} at {start_time.isoformat()}"
-                )
+                self.logger.info(f"Added new event: {event['name']} at {start_time.isoformat()}")
             else:
-                # Remove the existing event if it matches the Discord event
-                for existing_event in existing_events:
-                    self.remove_event(existing_event["id"])
-                    self.logger.info(
-                        f"Removed existing event: {existing_event['summary']} at {start_time.isoformat()}"
-                    )
+                # Check for any differences
+                google_start = datetime.fromisoformat(
+                    matching_event["start"]["dateTime"].replace("Z", "+00:00")
+                )
+                google_description = matching_event.get("description", "")
+                google_location = matching_event.get("location", "")
 
-                # Check to see if the event needs to be updated based on time and location
-                if existing_event[
-                    "scheduled_start_time"
-                ] != start_time.isoformat() or existing_event.get(
-                    "location"
-                ) != event.get(
-                    "location"
-                ):
+                discord_description = event.get("description", "")
+                discord_location = event.get("location", "")
+
+                needs_update = (
+                    google_start != start_time or
+                    google_description != discord_description or
+                    google_location != discord_location
+                )
+
+                if needs_update:
                     self.update_event(
-                        existing_event["id"],
+                        event_id=matching_event["id"],
                         start_time=start_time,
                         summary=event["name"],
-                        description=event.get("description"),
-                        location=event.get("location"),
+                        description=discord_description,
+                        location=discord_location,
                     )
-                    self.logger.info(
-                        f"Updated event: {event['name']} at {start_time.isoformat()}"
-                    )
+                    self.logger.info(f"Updated event: {event['name']} at {start_time.isoformat()}")
+                else:
+                    self.logger.info(f"No changes needed for event: {event['name']}")
 
         self.logger.info("Discord events synced with Google Calendar.")

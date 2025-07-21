@@ -337,4 +337,11 @@ class DiscordService:
         msg_data = {"content": message}
 
         msg_resp = self._make_request_with_retry("POST", msg_url, headers, json=msg_data)
-        self.logger.info("DM sent successfully to user ID: %s", user_id)
+        if msg_resp.status_code == 200:
+            self.logger.info("DM sent successfully to user ID: %s", user_id)
+        else:
+            self.logger.error(
+                "Failed to send DM to user ID: %s. Status code: %d",
+                user_id,
+                msg_resp.status_code,
+            )

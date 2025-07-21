@@ -49,8 +49,6 @@ if __name__ == "__main__":
             "formatters": {
                 "default": {
                     "format": "%(asctime)s [%(levelname)s] %(name)s.%(funcName)s:%(lineno)d - %(message)s",
-                },
-                "access": {
                     "use_colors": True,
                 },
             },
