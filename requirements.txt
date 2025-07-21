@@ -47,6 +47,7 @@ pyparsing==3.2.3
 python-dotenv==1.1.1
 pytz==2025.2
 PyYAML==6.0.2
+ratelimit==2.2.1
 redis==6.2.0
 requests==2.32.4
 requests-oauthlib==2.0.0
