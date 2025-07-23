@@ -30,16 +30,17 @@ class GoogleClient:
     def __init__(self):
         self.credentials = VaultSecretsLoader().load_secret(
             "google-credentials"
-        ) or os.getenv("GOOGLE_CREDENTIALS")
-
-        self.credentials["private_key"] = self.credentials.get(
-            "private_key", ""
-        ).replace("\\n", "\n")
+        ) or os.getenv("GOOGLE_CREDENTIALS", None)
 
         if self.credentials is None:
             raise ValueError(
                 "Google credentials not found. Please set GOOGLE_CREDENTIALS environment variable or use Vault secrets."
             )
+
+        self.credentials["private_key"] = self.credentials.get(
+            "private_key", ""
+        ).replace("\\n", "\n")
+
         if isinstance(self.credentials, str):
             self.credentials = service_account.Credentials.from_service_account_file(
                 self.credentials, scopes=SCOPES
