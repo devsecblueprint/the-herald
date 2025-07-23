@@ -287,7 +287,7 @@ class DiscordService:
                     )
                     key = f"reminder:{event_id}:{user_id}:1h"
 
-                    if self.redis_client.exists(key):
+                    if self.redis_client.get(key) is not None:
                         self.logger.info(
                             "Reminder already sent for event %s to user %s",
                             event_id,
@@ -302,8 +302,10 @@ class DiscordService:
                     )
                     try:
                         self._send_dm(user_id, reminder, headers)
-                        self.redis_client.set(
-                            key, datetime.now(timezone.utc).isoformat()
+                        self.redis_client.setex(
+                            key,
+                            7200,
+                            datetime.now(timezone.utc).isoformat(),  # 2 hour expiration
                         )
                         self.logger.info(
                             "Reminder set in Redis for event %s to user %s",
