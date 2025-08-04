@@ -34,7 +34,7 @@ jobs:
           docker build -t the-advisor:${{ github.sha }} .   ###- This section needed to be added becasue the image was not persisting between jobs--##
 
       - name: Run Trivy Vulnerability Scanner
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.32.0
         with:
           image-ref: "the-advisor:${{ github.sha }}"
           format: "sarif"
