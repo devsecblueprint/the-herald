@@ -32,8 +32,9 @@ class NewsletterService:
         self.discord_service = DiscordService()
 
         # Initialize Redis client
-        RedisClient().connect()
-        self.redis_client = RedisClient().client
+        redis_client = RedisClient()
+        redis_client.connect()
+        self.redis_client = redis_client.client
 
     def publish_latest_articles(self):
         """
