@@ -10,7 +10,6 @@ import feedparser
 import pytz
 
 from services.discord import DiscordService
-from clients.redis import RedisClient
 from config.logger import LoggerConfig
 from models import FeedsConfig, Feed
 
@@ -24,23 +23,16 @@ class NewsletterService:
     Attributes:
         discord_service (DiscordService): Service to interact with Discord API.
         channel_name (str): Name of the Discord channel to publish articles.
-        redis_client (RedisClient): Redis client for caching and storing data.
     """
 
     def __init__(self):
         self.logger = LoggerConfig(__name__).get_logger()
         self.discord_service = DiscordService()
 
-        # Initialize Redis client
-        redis_client = RedisClient()
-        redis_client.connect()
-        self.redis_client = redis_client.client
-
     def publish_latest_articles(self):
         """
         Fetches articles from configured RSS feeds and publishes the latest articles to the specified Discord channel.
         It retrieves the articles, checks if they are already published in the Discord channel, and sends new articles.
-        It also stores the published articles in Redis for caching.
         """
         self.logger.info("Starting to publish latest articles...")
 
@@ -77,16 +69,6 @@ class NewsletterService:
                     )
 
                     self.logger.info("Message sent to channel: %s", channel_name)
-                    self.redis_client.set(
-                        f"newsletter:{channel_name}",
-                        newsletter_info,
-                        expiration=24 * 60 * 60,  # Store for 24 hours
-                    )
-                    self.logger.info(
-                        "Stored %s in Redis for channel: %s",
-                        newsletter_info,
-                        channel_name,
-                    )
                 else:
                     self.logger.info(
                         "Message already exists in channel: %s", channel_name

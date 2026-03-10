@@ -31,7 +31,7 @@ class VaultSecretsLoader:
         Loads the secret from the Vault-injected file.
 
         Returns:
-            str: The Redis password, or None if the file is not found.
+            str: The secret content, or None if the file is not found.
         """
         return self._load_secret_file(secret_file_name)
 

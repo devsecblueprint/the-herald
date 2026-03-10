@@ -1,6 +1,6 @@
-# Contributing to Discord Bot
+# Contributing to The Herald
 
-Thank you for considering contributing to the **Discord Bot** project! Contributions are what make the open-source community a fantastic place to learn, inspire, and create. We welcome contributions of all kinds, from reporting issues to suggesting features or contributing code.
+Thank you for considering contributing to the **The Herald** project! Contributions are what make the open-source community a fantastic place to learn, inspire, and create. We welcome contributions of all kinds, from reporting issues to suggesting features or contributing code.
 
 ## Table of Contents
 
@@ -16,8 +16,8 @@ Thank you for considering contributing to the **Discord Bot** project! Contribut
 1. Fork the repository and clone it locally:
 
    ```bash
-   git clone https://github.com/The-DevSec-Blueprint/discord-bot.git
-   cd discord-bot
+   git clone https://github.com/The-DevSec-Blueprint/the-herald.git
+   cd the-herald
    ```
 
 2. Create a new branch for your changes:
@@ -127,4 +127,4 @@ You may also need:
 
 This project adheres to a [Code of Conduct](./CODE_OF_CONDUCT.md). By participating, you agree to uphold this code and contribute to a positive and inclusive environment.
 
-Thank you for contributing to **Discord Bot**! 🚀
+Thank you for contributing to **The Herald**! 🚀

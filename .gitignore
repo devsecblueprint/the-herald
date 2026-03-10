@@ -1,6 +1,8 @@
 .env/
 .DS_Store
 test.py
+.kiro/
+terraform/lambda*
 
 # Credentials
 .credentials/

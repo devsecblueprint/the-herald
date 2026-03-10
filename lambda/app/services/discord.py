@@ -3,18 +3,13 @@ DiscordService is responsible for interacting with the Discord API.
 It provides methods to get channel IDs and check messages in a Discord channel.
 """
 
-import os
 from datetime import datetime, timedelta, timezone
 import time
 import json
 import requests
-from dotenv import load_dotenv
 from config.logger import LoggerConfig
-from utils.secrets import VaultSecretsLoader
-from clients.redis import RedisClient
-
-# Load environment variables from .env file
-load_dotenv()
+from clients.parameter_store import ParameterStoreClient
+from clients.dynamodb import DynamoDBClient
 
 
 class DiscordService:
@@ -23,25 +18,48 @@ class DiscordService:
     It provides methods to get channel IDs and check messages in a Discord channel.
     Attributes:
         token (str): Discord bot token for authentication.
-        self.guild_id (int): ID of the Discord guild (server) to interact with.
+        guild_id (str): ID of the Discord guild (server) to interact with.
+        dynamodb_client (DynamoDBClient): Client for reminder state tracking.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        parameter_store_client: ParameterStoreClient = None,
+        dynamodb_client: DynamoDBClient = None,
+    ):
+        """
+        Initialize the DiscordService.
+
+        Args:
+            parameter_store_client: Client for retrieving secrets from Parameter Store.
+                                   If None, a default client will be created.
+            dynamodb_client: Client for reminder state tracking in DynamoDB.
+                            If None, reminder tracking will be disabled.
+        """
         self.logger = LoggerConfig(__name__).get_logger()
-        self.redis_client = RedisClient().client
-        self.token = VaultSecretsLoader().load_secret("discord-token") or os.getenv(
-            "DISCORD_TOKEN"
-        )
 
-        if not self.token:
-            raise ValueError(
-                "Discord token not found. Set DISCORD_TOKEN environment variable or use Vault secrets."
+        # Initialize Parameter Store client if not provided
+        if parameter_store_client is None:
+            parameter_store_client = ParameterStoreClient()
+
+        # Retrieve Discord credentials from Parameter Store
+        try:
+            self.token = parameter_store_client.get_discord_token()
+            self.guild_id = parameter_store_client.get_guild_id()
+            self.logger.info(
+                "Successfully retrieved Discord credentials from Parameter Store"
             )
+        except ValueError as e:
+            self.logger.error(f"Failed to retrieve Discord credentials: {e}")
+            raise
 
-        self.guild_id = int(os.getenv("DISCORD_GUILD_ID"))
-        if not self.guild_id:
-            raise ValueError(
-                "Discord guild ID not found. Set DISCORD_GUILD_ID environment variable."
+        # Store DynamoDB client for reminder tracking
+        self.dynamodb_client = dynamodb_client
+        if self.dynamodb_client:
+            self.logger.info("DynamoDB client configured for reminder tracking")
+        else:
+            self.logger.warning(
+                "No DynamoDB client provided - reminder tracking disabled"
             )
 
     def _make_request_with_retry(
@@ -234,6 +252,8 @@ class DiscordService:
         """
         List scheduled events in the Discord guild and send reminders to users.
         This method checks for events starting in about 1 hour and sends reminders to users.
+        Uses DynamoDB for reminder tracking to prevent duplicate notifications within a 2-hour window.
+
         Args:
             time_delta (timedelta): Time delta to check for events. Defaults to 1 minute.
         Raises:
@@ -282,18 +302,32 @@ class DiscordService:
                 for user in users:
                     user_id = user["user"]["id"]
                     username = user["user"]["username"]
-                    self.logger.info(
-                        "Sending reminder for event %s to user %s", event_id, user_id
-                    )
-                    key = f"reminder:{event_id}:{user_id}:1h"
 
-                    if self.redis_client.get(key) is not None:
-                        self.logger.info(
-                            "Reminder already sent for event %s to user %s",
+                    # Check if reminder was already sent using DynamoDB
+                    if self.dynamodb_client:
+                        reminder_already_sent = (
+                            self.dynamodb_client.check_reminder_sent(
+                                event_id=event_id, user_id=user_id, reminder_type="1h"
+                            )
+                        )
+
+                        if reminder_already_sent:
+                            self.logger.info(
+                                "Reminder already sent for event %s to user %s (within 2-hour window)",
+                                event_id,
+                                user_id,
+                            )
+                            continue
+                    else:
+                        self.logger.warning(
+                            "DynamoDB client not available - skipping duplicate check for event %s, user %s",
                             event_id,
                             user_id,
                         )
-                        continue  # Already sent
+
+                    self.logger.info(
+                        "Sending reminder for event %s to user %s", event_id, user_id
+                    )
 
                     reminder = (
                         f"🌟 Hey <@{user_id}>! Just a quick vibe check — **{event['name']}** is starting in "
@@ -302,16 +336,30 @@ class DiscordService:
                     )
                     try:
                         self._send_dm(user_id, reminder, headers)
-                        self.redis_client.setex(
-                            key,
-                            7200,
-                            datetime.now(timezone.utc).isoformat(),  # 2 hour expiration
-                        )
-                        self.logger.info(
-                            "Reminder set in Redis for event %s to user %s",
-                            event_id,
-                            user_id,
-                        )
+
+                        # Record reminder in DynamoDB with 2-hour TTL
+                        if self.dynamodb_client:
+                            success = self.dynamodb_client.record_reminder_sent(
+                                event_id=event_id, user_id=user_id, reminder_type="1h"
+                            )
+                            if success:
+                                self.logger.info(
+                                    "Reminder sent and recorded for event %s to user %s",
+                                    event_id,
+                                    user_id,
+                                )
+                            else:
+                                self.logger.warning(
+                                    "Reminder sent but failed to record in DynamoDB for event %s, user %s",
+                                    event_id,
+                                    user_id,
+                                )
+                        else:
+                            self.logger.info(
+                                "Reminder sent for event %s to user %s (DynamoDB tracking disabled)",
+                                event_id,
+                                user_id,
+                            )
                     except Exception as e:
                         self.logger.error(f"Could not DM {username}: {e}")
 
