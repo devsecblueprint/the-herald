@@ -176,8 +176,7 @@ def build_all(c):
 def apply(c):
     """Run terraform apply to deploy infrastructure."""
     print("Running terraform apply...")
-    with c.cd("terraform"):
-        c.run("terraform apply --auto-approve")
+    c.run("cd terraform && terraform init && terraform apply -auto-approve")
 
 
 @task

@@ -97,8 +97,8 @@ resource "aws_cloudwatch_log_group" "lambda_logs" {
 # Newsletter Publishing (every 15 minutes)
 resource "aws_cloudwatch_event_rule" "newsletter_schedule" {
   name                = "the-herald-newsletter-schedule"
-  description         = "Triggers Discord bot newsletter handler every 15 minutes"
-  schedule_expression = "rate(15 minutes)"
+  description         = "Triggers Discord bot newsletter handler every 60 minutes"
+  schedule_expression = "rate(60 minutes)"
 
   tags = {
     Name        = "the-herald-newsletter-schedule"

@@ -1,4 +1,5 @@
-name: Main Workflow
+name: Deploy to AWS Lambda
+
 on:
   push:
     branches:
@@ -7,12 +8,32 @@ on:
 
 permissions:
   contents: read
-  security-events: write
-  actions: read
   id-token: write
-  packages: write
 
 jobs:
-  push-docker-image:
-    uses: ./.github/workflows/push-docker-image.yml
-    secrets: inherit
+  deploy:
+    name: Build and Deploy Lambda
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Setup Python 3.13
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Terraform Apply
+        run: uv run invoke apply

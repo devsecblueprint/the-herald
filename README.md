@@ -18,7 +18,7 @@ The Herald is the ever-watchful and enigmatic bot, designed to guide, inform, an
 **Current Responsibilities:**
 
 1. _Security Newsletter:_
-   The Herald curates and delivers a cutting-edge security newsletter, ensuring users stay informed about the latest developments, threats, and best practices in cybersecurity and DevSecOps. Its updates are both timely and actionable, published every 15 minutes via automated RSS feed monitoring.
+   The Herald curates and delivers a cutting-edge security newsletter, ensuring users stay informed about the latest developments, threats, and best practices in cybersecurity and DevSecOps. Its updates are both timely and actionable, published every hour via automated RSS feed monitoring.
 
 **Planned Features:**
 
@@ -69,7 +69,7 @@ graph TB
 ## Current Configuration
 
 **Active Features:**
-- Newsletter publishing (every 15 minutes via EventBridge)
+- Newsletter publishing (every hour via EventBridge)
 - RSS feed parsing and Discord message posting
 - AWS Parameter Store for secrets management
 - CloudWatch Logs for monitoring
@@ -281,10 +281,32 @@ The recommended deployment method is using Terraform Cloud, which manages all AW
 
 Terraform will create all required AWS resources and deploy both the Lambda layer and deployment package. The build artifacts in `terraform/lambda_layer.zip` and `terraform/lambda_deployment_package.zip` will be uploaded automatically.
 
+### Automated Deployment with GitHub Actions
+
+The repository includes a GitHub Actions workflow that automatically deploys to AWS Lambda on every push to the `main` branch.
+
+**Required GitHub Secrets:**
+
+- `TF_API_TOKEN`: Terraform Cloud API token for authentication
+- `DISCORD_TOKEN`: Discord bot authentication token
+- `DISCORD_GUILD_ID`: Discord server (guild) ID
+
+**Workflow steps:**
+
+1. Checkout code
+2. Install `uv` package manager with caching enabled
+3. Setup Python 3.13 using `uv`
+4. Install dependencies with `uv sync`
+5. Build Lambda packages (`uv run invoke build-all`)
+6. Setup Terraform with Cloud authentication
+7. Run Terraform init, plan, and apply
+
+The workflow can also be triggered manually via the GitHub Actions UI (`workflow_dispatch`).
+
 **Current Infrastructure:**
 
 - **Lambda Function**: Python 3.13 runtime, 1GB memory, 5-minute timeout
-- **EventBridge Schedule**: Newsletter publishing every 15 minutes
+- **EventBridge Schedule**: Newsletter publishing every hour
 - **Parameter Store**: Discord token (SecureString) and guild ID in `us-east-2`
 - **CloudWatch Logs**: 30-day retention
 - **IAM Roles**: Least privilege access for Lambda execution
