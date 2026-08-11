@@ -18,9 +18,9 @@ AWS_REGION = "us-east-2"
 
 @task
 def build(c):
-    """Build the Docker image locally."""
-    print("Building Docker image...")
-    c.run("docker build -t the-herald:latest .")
+    """Build the Docker image locally (linux/amd64 for ECS Fargate)."""
+    print("Building Docker image (linux/amd64)...")
+    c.run("docker build --platform linux/amd64 -t the-herald:latest .")
     print("✓ Docker image built: the-herald:latest")
 
 
@@ -60,7 +60,7 @@ def push(c, tag="latest"):
     image_uri = f"{ecr_url}/{ECR_REPOSITORY}:{tag}"
 
     print(f"Building and pushing image: {image_uri}")
-    c.run(f"docker build -t {image_uri} .")
+    c.run(f"docker build --platform linux/amd64 -t {image_uri} .")
     c.run(f"docker push {image_uri}")
 
     # Also tag and push as latest
@@ -101,7 +101,7 @@ def push_and_deploy(c, tag="latest"):
 
 
 @task
-def terraform_apply(c):
+def apply(c):
     """Run terraform apply to deploy infrastructure changes."""
     print("Running terraform apply...")
     c.run("terraform -chdir=terraform init && terraform -chdir=terraform apply -auto-approve")

@@ -27,13 +27,6 @@ variable "environment" {
   default     = "prod"
 }
 
-# Networking
-variable "vpc_name" {
-  description = "Name tag of the VPC to deploy into"
-  type        = string
-  default     = "dsb-platform"
-}
-
 # ECS Task Configuration
 variable "task_cpu" {
   description = "CPU units for the Fargate task (256, 512, 1024, 2048, 4096)"

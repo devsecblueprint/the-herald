@@ -9,15 +9,12 @@ data "aws_ecs_cluster" "dsb_platform" {
   cluster_name = "dsb-platform"
 }
 
-# VPC - uses the default VPC or the one tagged for dsb-platform
+# Default VPC
 data "aws_vpc" "main" {
-  filter {
-    name   = "tag:Name"
-    values = [var.vpc_name]
-  }
+  default = true
 }
 
-# Public subnets for Fargate tasks (no ingress rules — not exposed)
+# Default subnets (public) for Fargate tasks
 data "aws_subnets" "public" {
   filter {
     name   = "vpc-id"
@@ -25,7 +22,7 @@ data "aws_subnets" "public" {
   }
 
   filter {
-    name   = "tag:Tier"
-    values = ["public"]
+    name   = "default-for-az"
+    values = ["true"]
   }
 }

@@ -11,6 +11,9 @@ dependencies = [
     # Scheduler
     "apscheduler==3.11.0",
 
+    # Discord gateway (persistent presence)
+    "discord.py==2.7.1",
+
     # AWS SDK
     "boto3==1.42.64",
 

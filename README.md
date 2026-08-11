@@ -11,427 +11,198 @@
   <img src="./docs/imgs/the_herald.jpg" alt="The Herald Image" />
 </p>
 
-## Overview... in a mystical sense
+## Overview
 
 The Herald is the ever-watchful and enigmatic bot, designed to guide, inform, and protect the DSB community in the sprawling digital world. True to its name, The Herald serves as a messenger and beacon, delivering essential updates and insights to empower users on their DevSecOps journey.
 
 **Current Responsibilities:**
 
 1. _Security Newsletter:_
-   The Herald curates and delivers a cutting-edge security newsletter, ensuring users stay informed about the latest developments, threats, and best practices in cybersecurity and DevSecOps. Its updates are both timely and actionable, published every hour via automated RSS feed monitoring.
+   Curates and delivers a security newsletter by monitoring RSS feeds from sources like Bleeping Computer, The Hacker News, CNBC, and TechCrunch. New articles are posted to the appropriate Discord channels every hour.
+
+2. _Event Notifications:_
+   Monitors upcoming Discord scheduled events and sends DM reminders to interested users one hour before events start. Uses DynamoDB for deduplication to prevent duplicate notifications.
+
+3. _Always Online:_
+   Maintains a persistent Discord gateway connection so the bot always appears online in the server member list with a "Watching over the community" status.
 
 **Planned Features:**
 
 1. _New Video Announcements:_
    Acting as the digital voice of the DSB founder, The Herald will announce newly released videos, offering summaries and insights into their content.
 
-## Architecture Diagram
+## Architecture
+
+The Herald runs as a containerized FastAPI application on AWS ECS Fargate (dsb-platform cluster), using APScheduler for periodic tasks and a persistent Discord gateway connection for presence.
 
 ```mermaid
 graph TB
     subgraph "AWS Cloud - us-east-2"
-        EB[EventBridge Rule<br/>15 min schedule]
-        
-        subgraph "Lambda Function"
-            LF[the-herald-handler<br/>Python 3.13<br/>1GB RAM / 5min timeout]
-            LL[Lambda Layer<br/>Python Dependencies]
+        subgraph "ECS Cluster: dsb-platform"
+            SVC[ECS Service<br/>the-herald<br/>Fargate 0.5 vCPU / 1GB]
         end
-        
+
+        ECR[ECR Repository<br/>the-herald]
         PS[Parameter Store<br/>/the-herald/prod/<br/>- discord-token<br/>- guild-id]
-        CW[CloudWatch Logs<br/>30-day retention]
-        IAM[IAM Role<br/>Lambda Execution]
-        
-        EB -->|Invoke with<br/>handler_type: newsletter| LF
-        LF -->|Uses| LL
-        LF -->|Read secrets| PS
-        LF -->|Write logs| CW
-        IAM -->|Grants permissions| LF
+        CW[CloudWatch Logs<br/>/ecs/the-herald<br/>30-day retention]
+
+        ECR -->|Pull image| SVC
+        SVC -->|Read secrets| PS
+        SVC -->|Write logs| CW
     end
-    
+
     subgraph "External Services"
         RSS[RSS Feeds<br/>Security News]
-        DC[Discord API<br/>Guild/Channel]
+        DC[Discord Gateway<br/>Persistent Connection]
+        DAPI[Discord REST API<br/>Messages & Events]
     end
-    
-    LF -->|Fetch feeds| RSS
-    LF -->|Post messages| DC
-    
-    style LF fill:#FF9900
-    style LL fill:#FF9900
-    style EB fill:#FF4F8B
+
+    SVC -->|Fetch feeds<br/>every 60 min| RSS
+    SVC -->|WebSocket<br/>always online| DC
+    SVC -->|Post messages &<br/>send reminders| DAPI
+
+    style SVC fill:#FF9900
+    style ECR fill:#FF9900
     style PS fill:#527FFF
     style CW fill:#FF9900
-    style IAM fill:#DD344C
     style RSS fill:#90EE90
     style DC fill:#5865F2
+    style DAPI fill:#5865F2
 ```
 
-## Current Configuration
+## Configuration
 
-**Active Features:**
-- Newsletter publishing (every hour via EventBridge)
-- RSS feed parsing and Discord message posting
-- AWS Parameter Store for secrets management
-- CloudWatch Logs for monitoring
+**Scheduled Jobs (via APScheduler):**
 
-**Disabled Features:**
-- Event notifications (EventBridge rule commented out)
-- DynamoDB reminder tracking (table and IAM policies commented out)
+| Job | Interval | Description |
+|-----|----------|-------------|
+| Newsletter | 60 minutes | Fetches RSS feeds and posts new articles to Discord channels |
+| Event Notifications | 5 minutes | Checks upcoming Discord events and sends DM reminders |
+
+**Always-on:**
+
+| Component | Description |
+|-----------|-------------|
+| Discord Gateway | Persistent WebSocket connection keeping the bot online with activity status |
 
 **AWS Resources:**
 - **Region**: us-east-2
-- **Lambda Runtime**: Python 3.13
-- **Lambda Memory**: 1024 MB (1 GB)
-- **Lambda Timeout**: 300 seconds (5 minutes)
+- **ECS Cluster**: dsb-platform (Fargate)
+- **Task Size**: 0.5 vCPU / 1 GB RAM
+- **Networking**: Public subnet, public IP for outbound (no ingress rules)
 - **Parameter Store Prefix**: `/the-herald/prod/`
 - **Log Retention**: 30 days
 
 **Environment Variables:**
-- `PARAMETER_STORE_PREFIX`: `/the-herald/prod/`
-- `LOG_LEVEL`: `INFO`
-- `AWS_REGION`: Set automatically by Lambda (us-east-2)
 
-## AWS Lambda Deployment
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PARAMETER_STORE_PREFIX` | `/the-herald/prod/` | AWS Parameter Store prefix for secrets |
+| `DYNAMODB_TABLE_NAME` | `the-herald-reminders` | DynamoDB table for reminder deduplication |
+| `LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
+| `NEWSLETTER_INTERVAL_MINUTES` | `60` | Newsletter job interval |
+| `EVENT_NOTIFICATION_INTERVAL_MINUTES` | `5` | Event notification job interval |
 
-This application runs as an AWS Lambda function with EventBridge scheduling. The deployment consists of two main components: the Lambda function code and a Lambda layer containing Python dependencies.
-
-### Build System
-
-All build operations are managed through `tasks.py` using the `invoke` task runner. This Python-based build system handles building both the Lambda layer and deployment package, placing artifacts in the `terraform/` directory for Terraform Cloud deployment.
-
-**Available tasks:**
-
-```bash
-# Build Lambda layer with Python dependencies
-invoke build-layer
-
-# Build Lambda deployment package
-invoke build-package
-
-# Build both layer and deployment package
-invoke build-all
-
-# Apply Terraform changes (builds first, then deploys)
-invoke apply
-
-# Clean all build artifacts
-invoke clean
-
-# List all available tasks
-invoke --list
-```
+## Local Development
 
 **Prerequisites:**
 - Python 3.13+
-- `invoke` package installed (`pip install invoke`)
-- AWS CLI configured (for manual deployment)
-- Terraform CLI (for infrastructure deployment)
+- Docker
+- AWS CLI configured
+- `uv` package manager
 
-### Lambda Layer Build and Deployment
-
-The Lambda layer packages all Python dependencies separately from the application code, reducing deployment package size and enabling dependency reuse.
-
-#### Building the Lambda Layer
-
-To build the Lambda layer, run:
+### Setup
 
 ```bash
-invoke build-layer
+# Install dependencies
+uv sync
+
+# Run locally with Docker
+invoke run
 ```
 
-This will:
+This starts the container with your `.env` file mounted. The app exposes:
+- `GET /health` — health check (includes Discord connection status)
+- `POST /trigger/newsletter` — manually trigger newsletter job
+- `POST /trigger/event-notifications` — manually trigger event notifications
 
-- Create a `terraform/lambda_layer/python/` directory structure required by AWS Lambda
-- Install all dependencies from `lambda-requirements.txt` (runtime dependencies only)
-- Optimize the layer by removing test files, `__pycache__`, and unnecessary metadata
-- Generate `terraform/lambda_layer.zip` ready for deployment
+### Build Tasks
 
-#### Deploying the Lambda Layer
-
-The layer is deployed automatically when using Terraform (see "Deploying with Terraform Cloud" section below). For manual deployment using AWS CLI:
+All operations are managed through `tasks.py` using the `invoke` task runner:
 
 ```bash
-aws lambda publish-layer-version \
-  --layer-name the-herald-dependencies \
-  --zip-file fileb://terraform/lambda_layer.zip \
-  --compatible-runtimes python3.13 \
-  --description "Python dependencies for Discord bot Lambda function"
+invoke build              # Build Docker image (linux/amd64)
+invoke run                # Run locally with Docker
+invoke push               # Build and push image to ECR
+invoke deploy             # Force new ECS deployment
+invoke push-and-deploy    # Build, push, and deploy (full pipeline)
+invoke terraform-apply    # Apply Terraform infrastructure changes
+invoke logs               # Tail CloudWatch logs
+invoke logs --follow      # Stream logs in real-time
+invoke clean              # Remove old build artifacts
 ```
 
-The command will return a JSON response containing the layer version ARN. Save this ARN to reference in your Lambda function configuration.
+## Deployment
 
-#### Layer Versioning Strategy
-
-The Lambda layer follows an independent versioning strategy from the application code:
-
-**When to create a new layer version:**
-
-- When adding new Python dependencies to `lambda-requirements.txt`
-- When updating existing dependency versions
-- When changing the Python runtime version (e.g., from Python 3.11 to 3.13)
-
-**When NOT to create a new layer version:**
-
-- When modifying application code in the `lambda/app/` directory
-- When updating `lambda/lambda_handler.py`
-- When changing configuration files (e.g., `app/static/config.yaml`)
-
-**Best practices:**
-
-1. **Version naming**: Use semantic versioning in layer descriptions (e.g., "v1.0.0", "v1.1.0") to track changes
-2. **Immutability**: Never modify an existing layer version; always create a new version
-3. **Testing**: Test new layer versions in a development environment before updating production Lambda functions
-4. **Cleanup**: Periodically delete unused layer versions to reduce storage costs (keep at least the last 2-3 versions)
-5. **Documentation**: Document dependency changes in commit messages when updating `lambda-requirements.txt`
-
-**Example workflow:**
+### Manual Deploy
 
 ```bash
-# 1. Update lambda-requirements.txt with new dependencies
-echo "new-package==1.2.3" >> lambda-requirements.txt
+# Build and push image to ECR, then update ECS
+invoke push-and-deploy
 
-# 2. Build the new layer
-invoke build-layer
-
-# 3. Deploy with Terraform (recommended)
-invoke apply
-
-# OR deploy manually with AWS CLI
-aws lambda publish-layer-version \
-  --layer-name the-herald-dependencies \
-  --zip-file fileb://terraform/lambda_layer.zip \
-  --compatible-runtimes python3.13 \
-  --description "v1.1.0 - Added new-package for feature X"
+# Or step by step:
+invoke push --tag=v2.0.0
+invoke deploy
 ```
 
-**Checking current layer version:**
-```bash
-# List all versions of the layer
-aws lambda list-layer-versions --layer-name the-herald-dependencies
+### Infrastructure
 
-# Get details of a specific layer version
-aws lambda get-layer-version \
-  --layer-name the-herald-dependencies \
-  --version-number 1
-```
-
-### Lambda Deployment Package Build and Deployment
-
-The Lambda deployment package contains the application code (`lambda/app/` directory) and the Lambda handler entry point (`lambda/lambda_handler.py`). This package is separate from the Lambda layer and should be updated whenever application code changes.
-
-#### Building the Deployment Package
-
-To build the deployment package, run:
+Infrastructure is managed with Terraform Cloud (organization: `devsecblueprint`, workspace: `the-herald`).
 
 ```bash
-invoke build-package
+invoke terraform-apply
 ```
 
-This will:
+**Required Terraform Cloud Variables:**
 
-- Create a `terraform/lambda_deployment_package/` directory with the application structure
-- Copy the `lambda/app/` directory (including all services, clients, and configuration)
-- Copy `lambda/lambda_handler.py` as the Lambda entry point
-- Include `app/static/config.yaml` for RSS feed configuration
-- Exclude test files, `__pycache__`, and `.pyc` files
-- Generate `terraform/lambda_deployment_package.zip` (under 50MB)
+| Variable | Type | Description |
+|----------|------|-------------|
+| `DISCORD_TOKEN` | Sensitive | Discord bot authentication token |
+| `DISCORD_GUILD_ID` | String | Discord server (guild) ID |
 
-#### Deploying with Terraform Cloud (Recommended)
+## Project Structure
 
-The recommended deployment method is using Terraform Cloud, which manages all AWS resources including the Lambda function, EventBridge rules, Parameter Store parameters, and IAM roles.
-
-**Prerequisites:**
-
-- [Terraform Cloud](https://app.terraform.io/) account configured
-- [Terraform CLI](https://www.terraform.io/downloads.html) >= 1.0 installed
-- AWS credentials configured in Terraform Cloud workspace
-- Discord bot token and guild ID
-
-**Deployment steps:**
-
-1. Build the deployment packages:
-
-   ```bash
-   invoke build-all
-   ```
-
-2. Configure Terraform variables in Terraform Cloud workspace or create `terraform/terraform.tfvars`:
-
-   ```hcl
-   DISCORD_TOKEN    = "your-discord-bot-token"
-   DISCORD_GUILD_ID = "your-discord-guild-id"
-   aws_region       = "us-east-2"
-   environment      = "prod"
-   ```
-
-3. Initialize and apply Terraform:
-
-   ```bash
-   cd terraform
-   terraform init
-   terraform plan
-   terraform apply
-   ```
-
-   Or use the convenience task:
-
-   ```bash
-   invoke apply
-   ```
-
-Terraform will create all required AWS resources and deploy both the Lambda layer and deployment package. The build artifacts in `terraform/lambda_layer.zip` and `terraform/lambda_deployment_package.zip` will be uploaded automatically.
-
-### Automated Deployment with GitHub Actions
-
-The repository includes a GitHub Actions workflow that automatically deploys to AWS Lambda on every push to the `main` branch.
-
-**Required GitHub Secrets:**
-
-- `TF_API_TOKEN`: Terraform Cloud API token for authentication
-- `DISCORD_TOKEN`: Discord bot authentication token
-- `DISCORD_GUILD_ID`: Discord server (guild) ID
-
-**Workflow steps:**
-
-1. Checkout code
-2. Install `uv` package manager with caching enabled
-3. Setup Python 3.13 using `uv`
-4. Install dependencies with `uv sync`
-5. Build Lambda packages (`uv run invoke build-all`)
-6. Setup Terraform with Cloud authentication
-7. Run Terraform init, plan, and apply
-
-The workflow can also be triggered manually via the GitHub Actions UI (`workflow_dispatch`).
-
-**Current Infrastructure:**
-
-- **Lambda Function**: Python 3.13 runtime, 1GB memory, 5-minute timeout
-- **EventBridge Schedule**: Newsletter publishing every hour
-- **Parameter Store**: Discord token (SecureString) and guild ID in `us-east-2`
-- **CloudWatch Logs**: 30-day retention
-- **IAM Roles**: Least privilege access for Lambda execution
-
-**Note**: Event notifications and DynamoDB reminder tracking are currently disabled. Only newsletter functionality is active.
-
-See [terraform/README.md](terraform/README.md) for detailed Terraform documentation.
-
-#### Manual Deployment with AWS CLI
-
-If you prefer manual deployment without Terraform Cloud, you can use the AWS CLI:
-
-1. **Build the deployment packages**:
-
-   ```bash
-   invoke build-all
-   ```
-
-2. **Deploy the Lambda layer**:
-
-   ```bash
-   aws lambda publish-layer-version \
-     --layer-name the-herald-dependencies \
-     --zip-file fileb://terraform/lambda_layer.zip \
-     --compatible-runtimes python3.13 \
-     --description "Python dependencies for Discord bot"
-   ```
-
-3. **Create or update the Lambda function**:
-
-   ```bash
-   # For new function creation
-   aws lambda create-function \
-     --function-name the-herald-handler \
-     --runtime python3.13 \
-     --role arn:aws:iam::YOUR_ACCOUNT_ID:role/lambda-execution-role \
-     --handler lambda_handler.main \
-     --zip-file fileb://terraform/lambda_deployment_package.zip \
-     --timeout 300 \
-     --memory-size 1024 \
-     --layers arn:aws:lambda:us-east-2:ACCOUNT_ID:layer:the-herald-dependencies:VERSION \
-     --environment Variables="{PARAMETER_STORE_PREFIX=/the-herald/prod/,LOG_LEVEL=INFO}"
-
-   # For existing function updates
-   aws lambda update-function-code \
-     --function-name the-herald-handler \
-     --zip-file fileb://terraform/lambda_deployment_package.zip
-   ```
-
-4. **Create Parameter Store parameters**:
-
-   ```bash
-   aws ssm put-parameter \
-     --name "/the-herald/prod/discord-token" \
-     --value "YOUR_DISCORD_BOT_TOKEN" \
-     --type SecureString \
-     --region us-east-2
-
-   aws ssm put-parameter \
-     --name "/the-herald/prod/guild-id" \
-     --value "YOUR_DISCORD_GUILD_ID" \
-     --type String \
-     --region us-east-2
-   ```
-
-5. **Create EventBridge rule for newsletter publishing**:
-
-   ```bash
-   aws events put-rule \
-     --name the-herald-newsletter-schedule \
-     --schedule-expression "rate(15 minutes)" \
-     --region us-east-2
-
-   aws events put-targets \
-     --rule the-herald-newsletter-schedule \
-     --targets "Id"="1","Arn"="arn:aws:lambda:us-east-2:ACCOUNT_ID:function:the-herald-handler","Input"='{"handler_type":"newsletter","source":"eventbridge.schedule"}' \
-     --region us-east-2
-
-   aws lambda add-permission \
-     --function-name the-herald-handler \
-     --statement-id AllowEventBridgeNewsletter \
-     --action lambda:InvokeFunction \
-     --principal events.amazonaws.com \
-     --source-arn arn:aws:events:us-east-2:ACCOUNT_ID:rule/the-herald-newsletter-schedule \
-     --region us-east-2
-   ```
-
-#### When to Update the Deployment Package
-
-Update the deployment package whenever you make changes to:
-
-- Application code in the `lambda/app/` directory
-- `lambda/lambda_handler.py` entry point
-- `app/static/config.yaml` feed configuration
-
-**Quick update workflow:**
-
-```bash
-# 1. Make code changes
-# 2. Rebuild deployment package
-invoke build-package
-
-# 3. Deploy with Terraform
-invoke apply
-
-# OR deploy with AWS CLI
-aws lambda update-function-code \
-  --function-name the-herald-handler \
-  --zip-file fileb://terraform/lambda_deployment_package.zip \
-  --region us-east-2
 ```
-
-#### Deployment Package Size Optimization
-
-The deployment package must be under 50MB (uncompressed). If you exceed this limit:
-
-1. **Move dependencies to the Lambda layer**: Ensure all Python packages are in `lambda-requirements.txt` and the layer, not the deployment package
-2. **Remove unnecessary files**: The build script already excludes test files and `__pycache__`
-3. **Check for large static files**: Review `lambda/app/static/` for any large files that can be moved to S3
-
-The build script will warn you if the package exceeds 50MB.
+the-herald/
+├── app/
+│   ├── main.py              # FastAPI + APScheduler + Discord presence
+│   ├── models.py            # Data models (Feed, FeedsConfig)
+│   ├── clients/
+│   │   ├── parameter_store.py  # AWS Parameter Store client
+│   │   └── dynamodb.py         # DynamoDB reminder tracking client
+│   ├── config/
+│   │   └── logger.py           # Logging configuration
+│   ├── services/
+│   │   ├── discord.py          # Discord REST API interactions
+│   │   └── newsletter.py       # RSS feed fetching and publishing
+│   ├── static/
+│   │   └── config.yaml         # RSS feed configuration
+│   └── utils/
+│       └── secrets.py          # Vault secrets loader (optional)
+├── terraform/
+│   ├── main.tf              # ECS, ECR, IAM, Parameter Store resources
+│   ├── data.tf              # Data sources (cluster, VPC, subnets)
+│   ├── variables.tf         # Input variables
+│   └── provider.tf          # Terraform Cloud + AWS provider config
+├── Dockerfile               # Multi-stage container build (linux/amd64)
+├── requirements.txt         # Pinned runtime dependencies
+├── pyproject.toml           # Project metadata and dev dependencies
+└── tasks.py                 # Build/deploy automation (invoke)
+```
 
 ## Want To Contribute?
 
-If you'd like to contribute to this project, you'll want to check out the [Contributing Documentation](./CONTRIBUTING.md).
+If you'd like to contribute to this project, check out the [Contributing Documentation](./CONTRIBUTING.md).
 
 ## Contributors
 

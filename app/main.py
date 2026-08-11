@@ -2,14 +2,18 @@
 The Herald - Discord Bot FastAPI Application.
 
 This module serves as the entry point for the containerized application.
-It provides a health check endpoint and uses APScheduler to run periodic
-tasks (newsletter publishing and event notifications).
+It provides a health check endpoint, uses APScheduler to run periodic
+tasks (newsletter publishing and event notifications), and maintains a
+persistent Discord gateway connection so the bot appears online.
 """
 
 import os
+import asyncio
 import logging
+import threading
 from contextlib import asynccontextmanager
 
+import discord
 from fastapi import FastAPI
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -140,6 +144,62 @@ def configure_scheduler():
 
 
 # ---------------------------------------------------------------------------
+# Discord Gateway Presence (keeps bot "Online" in Discord)
+# ---------------------------------------------------------------------------
+
+discord_client: discord.Client = None
+_discord_thread: threading.Thread = None
+
+
+def start_discord_presence():
+    """Start the Discord gateway connection in a background thread."""
+    global discord_client, _discord_thread
+
+    ps_client, _ = initialize_clients()
+
+    try:
+        token = ps_client.get_discord_token()
+    except ValueError as e:
+        logger.error(f"Cannot start Discord presence: {e}")
+        return
+
+    intents = discord.Intents.default()
+    discord_client = discord.Client(intents=intents)
+
+    @discord_client.event
+    async def on_ready():
+        logger.info(f"Discord presence connected as {discord_client.user} (ID: {discord_client.user.id})")
+        await discord_client.change_presence(
+            activity=discord.Activity(
+                type=discord.ActivityType.watching,
+                name="over the community",
+            )
+        )
+
+    def _run_bot():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(discord_client.start(token))
+        except Exception as e:
+            logger.error(f"Discord presence connection lost: {e}")
+        finally:
+            loop.close()
+
+    _discord_thread = threading.Thread(target=_run_bot, daemon=True, name="discord-presence")
+    _discord_thread.start()
+    logger.info("Discord presence thread started")
+
+
+async def stop_discord_presence():
+    """Gracefully close the Discord gateway connection."""
+    global discord_client
+    if discord_client and not discord_client.is_closed():
+        await discord_client.close()
+        logger.info("Discord presence connection closed")
+
+
+# ---------------------------------------------------------------------------
 # FastAPI Application with Lifespan
 # ---------------------------------------------------------------------------
 
@@ -151,11 +211,13 @@ async def lifespan(app: FastAPI):
     initialize_clients()
     configure_scheduler()
     scheduler.start()
+    start_discord_presence()
     logger.info("Scheduler started. The Herald is running.")
     yield
     # Shutdown
     logger.info("Shutting down The Herald...")
     scheduler.shutdown(wait=False)
+    await stop_discord_presence()
     logger.info("Scheduler stopped. Goodbye.")
 
 
@@ -175,11 +237,13 @@ app = FastAPI(
 async def health():
     """Health check endpoint for ECS container health monitoring."""
     jobs = scheduler.get_jobs()
+    discord_connected = discord_client is not None and not discord_client.is_closed() and discord_client.is_ready()
     return {
         "status": "healthy",
         "service": "the-herald",
         "scheduler_running": scheduler.running,
         "active_jobs": len(jobs),
+        "discord_connected": discord_connected,
     }
 
 
