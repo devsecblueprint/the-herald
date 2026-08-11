@@ -1,6 +1,18 @@
-# Terraform Variables for Discord Bot Lambda Infrastructure
-variable "DISCORD_TOKEN" {}
-variable "DISCORD_GUILD_ID" {}
+# ============================================================================
+# Terraform Variables for The Herald ECS Infrastructure
+# ============================================================================
+
+# Secrets (set via Terraform Cloud workspace variables)
+variable "DISCORD_TOKEN" {
+  description = "Discord bot authentication token"
+  type        = string
+  sensitive   = true
+}
+
+variable "DISCORD_GUILD_ID" {
+  description = "Discord server (guild) ID"
+  type        = string
+}
 
 # AWS Configuration
 variable "aws_region" {
@@ -15,21 +27,48 @@ variable "environment" {
   default     = "prod"
 }
 
-# Lambda Configuration
-variable "lambda_deployment_package_path" {
-  description = "Path to the Lambda deployment package ZIP file"
+# Networking
+variable "vpc_name" {
+  description = "Name tag of the VPC to deploy into"
   type        = string
-  default     = "lambda_deployment_package.zip"
+  default     = "dsb-platform"
 }
 
-variable "lambda_layer_package_path" {
-  description = "Path to the Lambda layer package ZIP file"
+# ECS Task Configuration
+variable "task_cpu" {
+  description = "CPU units for the Fargate task (256, 512, 1024, 2048, 4096)"
   type        = string
-  default     = "lambda_layer.zip"
+  default     = "512"
 }
 
+variable "task_memory" {
+  description = "Memory (MB) for the Fargate task"
+  type        = string
+  default     = "1024"
+}
+
+variable "desired_count" {
+  description = "Number of ECS tasks to run"
+  type        = number
+  default     = 1
+}
+
+# Scheduling Configuration
+variable "newsletter_interval_minutes" {
+  description = "Interval in minutes for the newsletter publishing job"
+  type        = number
+  default     = 60
+}
+
+variable "event_notification_interval_minutes" {
+  description = "Interval in minutes for the event notification job"
+  type        = number
+  default     = 5
+}
+
+# Logging
 variable "log_level" {
-  description = "Logging level for Lambda function (DEBUG, INFO, WARNING, ERROR)"
+  description = "Logging level (DEBUG, INFO, WARNING, ERROR)"
   type        = string
   default     = "INFO"
 }
@@ -51,11 +90,4 @@ variable "kms_key_id" {
   description = "KMS key ID for encrypting Parameter Store SecureString values (leave empty to use AWS managed key)"
   type        = string
   default     = ""
-}
-
-# DynamoDB Configuration
-variable "enable_dynamodb_pitr" {
-  description = "Enable point-in-time recovery for DynamoDB table"
-  type        = bool
-  default     = false
 }

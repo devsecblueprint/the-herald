@@ -1,187 +1,125 @@
 """
-Build tasks for AWS Lambda deployment package and layer.
+Build and deployment tasks for The Herald (ECS/Docker).
 Run with: invoke <task_name>
 """
 
+import json
 import shutil
-import zipfile
 from pathlib import Path
 
 from invoke import task
 
 
-def clean_pycache(directory: Path) -> None:
-    """Remove __pycache__ directories and .pyc files."""
-    for item in directory.rglob("__pycache__"):
-        shutil.rmtree(item, ignore_errors=True)
-    for item in directory.rglob("*.pyc"):
-        item.unlink(missing_ok=True)
-    for item in directory.rglob("*.pyo"):
-        item.unlink(missing_ok=True)
+ECR_REPOSITORY = "the-herald"
+ECS_CLUSTER = "dsb-platform"
+ECS_SERVICE = "the-herald"
+AWS_REGION = "us-east-2"
 
 
 @task
-def build_layer(c):
-    """Build Lambda layer with Python dependencies."""
-    print("Building AWS Lambda layer for Python dependencies...")
+def build(c):
+    """Build the Docker image locally."""
+    print("Building Docker image...")
+    c.run("docker build -t the-herald:latest .")
+    print("✓ Docker image built: the-herald:latest")
 
-    # Configuration
-    layer_dir = Path("terraform/lambda_layer")
-    python_dir = layer_dir / "python"
-    zip_file = Path("terraform/lambda_layer.zip")
 
-    # Clean up previous builds
-    print("Cleaning up previous builds...")
-    if layer_dir.exists():
-        shutil.rmtree(layer_dir)
-    if zip_file.exists():
-        zip_file.unlink()
-
-    # Create directory structure
-    print("Creating Lambda layer directory structure...")
-    python_dir.mkdir(parents=True, exist_ok=True)
-
-    # Install dependencies from lambda-requirements.txt
-    print("Installing dependencies into python/ directory...")
+@task
+def run(c):
+    """Run the application locally with Docker."""
+    print("Starting The Herald locally...")
     c.run(
-        f"pip install "
-        f"--target {python_dir} "
-        f"--requirement lambda-requirements.txt "
-        f"--upgrade "
-        f"--no-cache-dir"
+        "docker run --rm -p 8080:8080 "
+        "--env-file .env "
+        "-e PARAMETER_STORE_PREFIX=/the-herald/prod/ "
+        "-e LOG_LEVEL=DEBUG "
+        "the-herald:latest",
+        pty=True,
     )
 
-    # Remove unnecessary files
-    print("Removing unnecessary files to reduce layer size...")
-    for pattern in ["tests", "test"]:
-        for item in python_dir.rglob(pattern):
-            if item.is_dir():
-                shutil.rmtree(item, ignore_errors=True)
 
-    clean_pycache(python_dir)
+@task
+def push(c, tag="latest"):
+    """Build and push Docker image to ECR."""
+    print("Logging in to ECR...")
+    login_cmd = c.run(
+        f"aws ecr get-login-password --region {AWS_REGION}",
+        hide=True,
+    )
+    account_id = c.run(
+        "aws sts get-caller-identity --query Account --output text",
+        hide=True,
+    ).stdout.strip()
 
-    for pattern in ["*.dist-info", "*.egg-info"]:
-        for item in python_dir.rglob(pattern):
-            if item.is_dir():
-                shutil.rmtree(item, ignore_errors=True)
+    ecr_url = f"{account_id}.dkr.ecr.{AWS_REGION}.amazonaws.com"
+    c.run(
+        f"echo {login_cmd.stdout.strip()} | docker login --username AWS --password-stdin {ecr_url}",
+        hide=True,
+    )
 
-    # Create ZIP file
-    print("Creating ZIP file for Lambda layer deployment...")
-    with zipfile.ZipFile(zip_file, "w", zipfile.ZIP_DEFLATED) as zf:
-        for file in python_dir.rglob("*"):
-            if file.is_file():
-                arcname = file.relative_to(layer_dir)
-                zf.write(file, arcname)
+    image_uri = f"{ecr_url}/{ECR_REPOSITORY}:{tag}"
 
-    # Display results
-    layer_size = sum(f.stat().st_size for f in layer_dir.rglob("*") if f.is_file())
-    zip_size = zip_file.stat().st_size
+    print(f"Building and pushing image: {image_uri}")
+    c.run(f"docker build -t {image_uri} .")
+    c.run(f"docker push {image_uri}")
 
-    print()
-    print("✓ Lambda layer build complete!")
-    print(f"  Layer directory: {layer_dir}/ ({layer_size / 1024 / 1024:.1f}MB)")
-    print(f"  ZIP file: {zip_file} ({zip_size / 1024 / 1024:.1f}MB)")
-    print()
+    # Also tag and push as latest
+    if tag != "latest":
+        latest_uri = f"{ecr_url}/{ECR_REPOSITORY}:latest"
+        c.run(f"docker tag {image_uri} {latest_uri}")
+        c.run(f"docker push {latest_uri}")
+
+    print(f"✓ Image pushed: {image_uri}")
 
 
 @task
-def build_package(c):
-    """Build Lambda deployment package with application code."""
-    print("Building AWS Lambda deployment package...")
-
-    # Configuration
-    package_dir = Path("terraform/lambda_deployment_package")
-    zip_file = Path("terraform/lambda_deployment_package.zip")
-
-    # Clean up previous builds
-    print("Cleaning up previous builds...")
-    if package_dir.exists():
-        shutil.rmtree(package_dir)
-    if zip_file.exists():
-        zip_file.unlink()
-
-    # Create deployment package directory
-    print("Creating deployment package directory...")
-    package_dir.mkdir(parents=True, exist_ok=True)
-
-    # Copy application code from lambda/app
-    print("Copying application code...")
-    shutil.copytree("lambda/app", package_dir / "app", dirs_exist_ok=True)
-
-    # Copy Lambda handler from lambda/lambda_handler.py
-    print("Copying Lambda handler...")
-    shutil.copy("lambda/lambda_handler.py", package_dir / "lambda_handler.py")
-
-    # Verify config.yaml exists
-    config_file = package_dir / "app" / "static" / "config.yaml"
-    if config_file.exists():
-        print("Config file found and included in package")
-    else:
-        print("Warning: app/static/config.yaml not found")
-
-    # Remove test files and unnecessary artifacts
-    print("Removing test files and unnecessary artifacts...")
-    for pattern in ["test_*.py", "*_test.py"]:
-        for item in package_dir.rglob(pattern):
-            item.unlink(missing_ok=True)
-
-    for pattern in ["tests", "test"]:
-        for item in package_dir.rglob(pattern):
-            if item.is_dir():
-                shutil.rmtree(item, ignore_errors=True)
-
-    clean_pycache(package_dir)
-
-    for item in package_dir.rglob(".DS_Store"):
-        item.unlink(missing_ok=True)
-
-    # Create ZIP file
-    print("Creating ZIP file for Lambda deployment...")
-    with zipfile.ZipFile(zip_file, "w", zipfile.ZIP_DEFLATED) as zf:
-        for file in package_dir.rglob("*"):
-            if file.is_file():
-                arcname = file.relative_to(package_dir)
-                zf.write(file, arcname)
-
-    # Display results
-    package_size = sum(f.stat().st_size for f in package_dir.rglob("*") if f.is_file())
-    zip_size = zip_file.stat().st_size
-    zip_size_mb = zip_size / 1024 / 1024
-
-    print()
-    print("✓ Lambda deployment package build complete!")
-    print(f"  Package directory: {package_dir}/ ({package_size / 1024:.1f}KB)")
-    print(f"  ZIP file: {zip_file} ({zip_size / 1024:.1f}KB, {zip_size_mb:.1f}MB)")
-
-    # Check size limit
-    if zip_size_mb >= 50:
-        print()
-        print(f"⚠ Warning: Deployment package is {zip_size_mb:.1f}MB (limit is 50MB)")
-        print("  Consider moving more dependencies to the Lambda layer")
-    else:
-        print("  ✓ Package size is within 50MB limit")
-
-    print()
-    print("Deployment artifacts ready in terraform/ directory for Terraform Cloud")
-    print()
+def deploy(c, tag="latest"):
+    """Force a new deployment of the ECS service."""
+    print(f"Deploying to ECS cluster '{ECS_CLUSTER}', service '{ECS_SERVICE}'...")
+    c.run(
+        f"aws ecs update-service "
+        f"--cluster {ECS_CLUSTER} "
+        f"--service {ECS_SERVICE} "
+        f"--force-new-deployment "
+        f"--region {AWS_REGION}"
+    )
+    print("✓ Deployment triggered. Waiting for service stability...")
+    c.run(
+        f"aws ecs wait services-stable "
+        f"--cluster {ECS_CLUSTER} "
+        f"--services {ECS_SERVICE} "
+        f"--region {AWS_REGION}"
+    )
+    print("✓ Service is stable.")
 
 
-@task(pre=[build_layer, build_package])
-def build_all(c):
-    """Build both layer and deployment package."""
-    pass
+@task(pre=[build])
+def push_and_deploy(c, tag="latest"):
+    """Build, push to ECR, and deploy to ECS."""
+    push(c, tag=tag)
+    deploy(c, tag=tag)
 
 
-@task(pre=[build_all])
-def apply(c):
-    """Run terraform apply to deploy infrastructure."""
+@task
+def terraform_apply(c):
+    """Run terraform apply to deploy infrastructure changes."""
     print("Running terraform apply...")
-    c.run("cd terraform && terraform init && terraform apply -auto-approve")
+    c.run("terraform -chdir=terraform init && terraform -chdir=terraform apply -auto-approve")
+
+
+@task
+def logs(c, follow=False):
+    """Tail CloudWatch logs for the ECS service."""
+    follow_flag = "--follow" if follow else ""
+    c.run(
+        f"aws logs tail /ecs/the-herald --region {AWS_REGION} {follow_flag}",
+        pty=True,
+    )
 
 
 @task
 def clean(c):
-    """Clean all build artifacts."""
+    """Clean build artifacts."""
     print("Cleaning build artifacts...")
 
     artifacts = [
@@ -189,10 +127,6 @@ def clean(c):
         Path("terraform/lambda_layer.zip"),
         Path("terraform/lambda_deployment_package"),
         Path("terraform/lambda_deployment_package.zip"),
-        Path("lambda_deployment_package"),
-        Path("lambda_deployment_package.zip"),
-        Path("lambda_layer"),
-        Path("lambda_layer.zip"),
     ]
 
     for artifact in artifacts:

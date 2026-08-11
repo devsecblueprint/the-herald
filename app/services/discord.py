@@ -7,9 +7,9 @@ from datetime import datetime, timedelta, timezone
 import time
 import json
 import requests
-from config.logger import LoggerConfig
-from clients.parameter_store import ParameterStoreClient
-from clients.dynamodb import DynamoDBClient
+from app.config.logger import LoggerConfig
+from app.clients.parameter_store import ParameterStoreClient
+from app.clients.dynamodb import DynamoDBClient
 
 
 class DiscordService:

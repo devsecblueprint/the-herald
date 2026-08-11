@@ -9,9 +9,9 @@ from datetime import datetime
 import feedparser
 import pytz
 
-from services.discord import DiscordService
-from config.logger import LoggerConfig
-from models import FeedsConfig, Feed
+from app.services.discord import DiscordService
+from app.config.logger import LoggerConfig
+from app.models import FeedsConfig, Feed
 
 
 class NewsletterService:

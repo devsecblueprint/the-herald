@@ -1,0 +1,41 @@
+# Runtime dependencies for The Herald Discord bot (ECS/FastAPI)
+
+# Web framework
+fastapi==0.115.12
+uvicorn==0.34.2
+
+# Scheduler
+apscheduler==3.11.0
+
+# AWS SDK
+boto3==1.42.64
+
+# HTTP
+requests==2.32.5
+urllib3==2.6.3
+certifi==2026.2.25
+charset-normalizer==3.4.5
+idna==3.11
+
+# Data validation
+pydantic==2.12.5
+pydantic-core==2.41.5
+annotated-types==0.7.0
+typing-extensions==4.15.0
+typing-inspection==0.4.2
+
+# RSS feed parsing
+feedparser==6.0.12
+sgmllib3k==1.0.0
+
+# Configuration and data formats
+pyyaml==6.0.3
+python-dotenv==1.2.2
+
+# Time and timezone handling
+pytz==2026.1.post1
+tzlocal==5.3.1
+
+# Rate limiting
+ratelimit==2.2.1
+cachetools==7.0.5
