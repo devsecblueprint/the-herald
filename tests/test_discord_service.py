@@ -10,9 +10,9 @@ import logging
 # Add app directory to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "app"))
 
-from services.discord import DiscordService
-from clients.parameter_store import ParameterStoreClient
-from clients.dynamodb import DynamoDBClient
+from app.services.discord import DiscordService
+from app.clients.parameter_store import ParameterStoreClient
+from app.clients.dynamodb import DynamoDBClient
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

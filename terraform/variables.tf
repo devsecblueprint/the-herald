@@ -84,3 +84,33 @@ variable "kms_key_id" {
   type        = string
   default     = ""
 }
+
+# YouTube Ingestion
+variable "youtube_enabled" {
+  description = "Master kill switch for YouTube partner ingestion"
+  type        = bool
+  default     = true
+}
+
+variable "youtube_poll_interval_minutes" {
+  description = "Interval in minutes between YouTube polls"
+  type        = number
+  default     = 15
+}
+
+variable "youtube_exclude_shorts" {
+  description = "Announce long-form videos only; set false to announce Shorts too"
+  type        = bool
+  default     = true
+}
+
+variable "content_corner_channel_id" {
+  description = "Numeric Discord channel id for #content-corner, where partner uploads are announced"
+  type        = string
+}
+
+variable "dedup_table_name" {
+  description = "DynamoDB table for YouTube dedupe records, the source roster and cached channel references"
+  type        = string
+  default     = "the-herald-dedup"
+}
