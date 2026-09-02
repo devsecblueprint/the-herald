@@ -9,39 +9,18 @@ it is retried next poll. Guessing would mean either a Short in
 """
 
 import re
-from dataclasses import dataclass
 from typing import Optional, Protocol
 
-from app.services.youtube.errors import ClassificationError
-from app.services.youtube.http import HttpClient, HttpError
-from app.services.youtube.models import (
-    SKIP_REASON_LIVE,
-    SKIP_REASON_PREMIERE,
-    SKIP_REASON_SHORT,
-    ContentItem,
-)
+from app.clients.youtube import YouTubeClient
+from app.errors import ClassificationError, YouTubeApiError
+from app.models.youtube import (SKIP_REASON_LIVE, SKIP_REASON_PREMIERE,
+                                SKIP_REASON_SHORT, ContentItem, ShortsVerdict)
 
 # YouTube allows Shorts of up to three minutes. A video of exactly 180
 # seconds is therefore a Short.
 SHORT_MAX_SECONDS = 180
 
-SHORTS_URL_TEMPLATE = "https://www.youtube.com/shorts/{video_id}"
-DATA_API_VIDEOS_URL = "https://www.googleapis.com/youtube/v3/videos"
-
-DURATION_RE = re.compile(
-    r"^P(?:(?P<days>\d+)D)?"
-    r"(?:T(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?)?$"
-)
 SHORTS_TAG_RE = re.compile(r"#shorts?\b", re.IGNORECASE)
-
-
-@dataclass(frozen=True)
-class ShortsVerdict:
-    """Whether a video should be announced, and who decided."""
-
-    is_short: bool
-    detector: str
-    reason: Optional[str] = None
 
 
 class ShortsDetector(Protocol):
@@ -97,31 +76,24 @@ class ShortsUrlProbeDetector:
 
     name = "url_probe"
 
-    def __init__(self, http_client: HttpClient, timeout: float = 10):
-        self.http = http_client
-        self.timeout = timeout
+    def __init__(self, client: YouTubeClient):
+        self.client = client
 
     def classify(self, item: ContentItem) -> ShortsVerdict:
         """
-        Probe the Shorts URL without following redirects.
+        Probe the Shorts URL.
 
         Raises:
             ClassificationError: On a timeout or an unexpected status.
         """
-        url = SHORTS_URL_TEMPLATE.format(video_id=item.content_id)
         try:
-            response = self.http.head(url, allow_redirects=False, timeout=self.timeout)
-        except HttpError as exc:
-            raise ClassificationError(f"{item.content_id}: Shorts probe failed: {exc}") from exc
+            is_short = self.client.shorts_url_answers(item.content_id)
+        except YouTubeApiError as exc:
+            raise ClassificationError(f"{item.content_id}: {exc}") from exc
 
-        if response.status_code == 200:
+        if is_short:
             return ShortsVerdict(True, self.name, SKIP_REASON_SHORT)
-        if response.is_redirect:
-            return ShortsVerdict(False, self.name)
-
-        raise ClassificationError(
-            f"{item.content_id}: Shorts probe returned HTTP {response.status_code}"
-        )
+        return ShortsVerdict(False, self.name)
 
 
 class DataApiShortsDetector:
@@ -138,19 +110,15 @@ class DataApiShortsDetector:
 
     def __init__(
         self,
-        http_client: HttpClient,
-        api_key: str,
+        client: YouTubeClient,
         fallback: Optional[ShortsDetector] = None,
         max_seconds: int = SHORT_MAX_SECONDS,
     ):
-        self.http = http_client
-        self.api_key = api_key
+        self.client = client
         self.fallback = fallback
         self.max_seconds = max_seconds
 
     def classify(self, item: ContentItem) -> ShortsVerdict:
-        # Each return is a distinct, documented signal from the API.
-        # pylint: disable=too-many-return-statements
         """
         Classify by duration, falling back to the probe when unusable.
 
@@ -158,40 +126,18 @@ class DataApiShortsDetector:
             ClassificationError: If the API is unusable and there is no fallback.
         """
         try:
-            response = self.http.get(
-                DATA_API_VIDEOS_URL,
-                params={
-                    "part": "contentDetails,snippet",
-                    "id": item.content_id,
-                    "key": self.api_key,
-                },
-            )
-        except HttpError as exc:
-            return self._delegate(item, f"Data API request failed: {exc}")
+            details = self.client.fetch_video_details(item.content_id)
+        except YouTubeApiError as exc:
+            return self._delegate(item, str(exc))
 
-        if not response.ok:
-            return self._delegate(item, f"Data API returned HTTP {response.status_code}")
-
-        try:
-            payload = response.json()
-        except ValueError:
-            return self._delegate(item, "Data API response was not JSON")
-
-        entries = (payload or {}).get("items") or []
-        if not entries:
-            return self._delegate(item, "Data API returned no video")
-
-        entry = entries[0]
-        broadcast = (entry.get("snippet") or {}).get("liveBroadcastContent")
-        if broadcast == "live":
+        if details.live_broadcast == "live":
             return ShortsVerdict(True, self.name, SKIP_REASON_LIVE)
-        if broadcast == "upcoming":
+        if details.live_broadcast == "upcoming":
             return ShortsVerdict(True, self.name, SKIP_REASON_PREMIERE)
 
-        duration = (entry.get("contentDetails") or {}).get("duration")
-        seconds = parse_duration_seconds(duration)
-        if seconds is None or seconds == 0:
-            return self._delegate(item, f"Data API duration unusable ({duration!r})")
+        seconds = details.duration_seconds
+        if not seconds:
+            return self._delegate(item, f"Data API duration unusable ({details.duration!r})")
 
         if seconds <= self.max_seconds:
             return ShortsVerdict(True, self.name, SKIP_REASON_SHORT)
@@ -204,30 +150,11 @@ class DataApiShortsDetector:
         return self.fallback.classify(item)
 
 
-def parse_duration_seconds(duration: Optional[str]) -> Optional[int]:
-    """
-    Parse an ISO-8601 duration such as ``PT4M13S`` into seconds.
-
-    Returns None when the value is missing or unparseable.
-    """
-    if not isinstance(duration, str):
-        return None
-    match = DURATION_RE.match(duration.strip())
-    if not match:
-        return None
-    parts = {key: int(value or 0) for key, value in match.groupdict().items()}
-    return parts["days"] * 86400 + parts["hours"] * 3600 + parts["minutes"] * 60 + parts["seconds"]
-
-
-def build_shorts_detector(
-    http_client: HttpClient,
-    exclude_shorts: bool = True,
-    api_key: Optional[str] = None,
-) -> ShortsDetector:
-    """Pick the detector implied by the configuration and environment."""
+def build_shorts_detector(client: YouTubeClient, exclude_shorts: bool = True) -> ShortsDetector:
+    """Pick the detector implied by the configuration and the client."""
     if not exclude_shorts:
         return NullShortsDetector()
-    probe = ShortsUrlProbeDetector(http_client)
-    if api_key:
-        return DataApiShortsDetector(http_client, api_key, fallback=probe)
+    probe = ShortsUrlProbeDetector(client)
+    if client.has_api_key:
+        return DataApiShortsDetector(client, fallback=probe)
     return probe

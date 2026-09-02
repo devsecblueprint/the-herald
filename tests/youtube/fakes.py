@@ -13,11 +13,12 @@ from typing import Any, Dict, List, Mapping, Optional
 
 from botocore.exceptions import ClientError
 
-from app.services.youtube.clock import to_iso
-from app.services.youtube.config import YouTubeSource
-from app.services.youtube.errors import DistributionError
-from app.services.youtube.http import HttpError, HttpResponse
-from app.services.youtube.models import ChannelReference, ContentItem
+from app.clients.http import HttpError, HttpResponse
+from app.config.youtube import YouTubeSource, parse_channel_reference
+from app.errors import DistributionError
+from app.models.youtube import (ChannelReference, ContentItem, ShortsVerdict,
+                                SourceFetchResult)
+from app.utils.clock import to_iso
 from tests.youtube.condition import apply_update, evaluate_condition
 
 CONDITION_FAILURE = ClientError(
@@ -286,8 +287,6 @@ class StubIngestion:
         if isinstance(result, Exception):
             raise result
         if result is None:
-            from app.services.youtube.models import SourceFetchResult
-
             return SourceFetchResult(
                 source_key=source.key,
                 source_name=source.name,
@@ -310,8 +309,6 @@ class StubDetector:
 
     def classify(self, item):
         """Return the registered verdict, raising it if it is an exception."""
-        from app.services.youtube.shorts import ShortsVerdict
-
         self.seen.append(item.content_id)
         verdict = self.verdicts.get(item.content_id, self.default)
         if isinstance(verdict, Exception):
@@ -332,8 +329,6 @@ def make_source(
     attribution=None,
 ) -> YouTubeSource:
     """Build a configured source without going through YAML."""
-    from app.services.youtube.config import parse_channel_reference
-
     return YouTubeSource(
         name=name,
         relationship=relationship,

@@ -9,20 +9,21 @@ Discord payload builder are all the production code.
 import json
 from datetime import datetime, timedelta, timezone
 
-from app.services.youtube.clock import to_iso
-from app.services.youtube.distribution import BotTokenTransport, DiscordDistributionService
-from app.services.youtube.http import HttpResponse
-from app.services.youtube.ingestion import YouTubeIngestionService
-from app.services.youtube.models import STATUS_POSTED, STATUS_SKIPPED
-from app.services.youtube.pipeline import YouTubePipeline
-from app.services.youtube.repository import (
-    ChannelReferenceCache,
-    ProcessingRepository,
-    RosterRepository,
-)
-from app.services.youtube.resolver import ChannelResolver
-from app.services.youtube.shorts import build_shorts_detector
-from tests.youtube.fakes import FakeClock, FakeHttpClient, FakeTable, channel_page, feed_xml
+from app.clients.discord import BotTokenTransport
+from app.clients.http import HttpResponse
+from app.clients.youtube import YouTubeClient
+from app.models.youtube import STATUS_POSTED, STATUS_SKIPPED
+from app.repositories.youtube.channel_cache import ChannelReferenceCache
+from app.repositories.youtube.processing import ProcessingRepository
+from app.repositories.youtube.roster import RosterRepository
+from app.services.youtube.classification import build_shorts_detector
+from app.services.youtube.ingestion import (ChannelResolver,
+                                            YouTubeIngestionService)
+from app.services.youtube.polling import YouTubePollingService
+from app.services.youtube.publishing import YouTubePublishingService
+from app.utils.clock import to_iso
+from tests.youtube.fakes import (FakeClock, FakeHttpClient, FakeTable,
+                                 channel_page, feed_xml)
 from tests.youtube.harness import CHANNEL_ID, build_config
 
 YT_CHANNEL = "UCAAAAAAAAAAAAAAAAAAAAAA"
@@ -34,20 +35,23 @@ def at(day, hour=12):
 
 
 def build(http, table, clock):
+    """The production assembly, with only the network and the table faked."""
     config = build_config()
-    cache = ChannelReferenceCache(table, clock=clock)
-    resolver = ChannelResolver(http, cache=cache, clock=clock)
-    return YouTubePipeline(
+    youtube = YouTubeClient(http)
+    resolver = ChannelResolver(
+        youtube, cache=ChannelReferenceCache(table, clock=clock), clock=clock
+    )
+    return YouTubePollingService(
         config=config,
-        ingestion=YouTubeIngestionService(http, resolver=resolver),
-        distribution=DiscordDistributionService(
-            BotTokenTransport(http, "token", sleeper=lambda _s: None),
-            config.discord_channel_id,
+        ingestion=YouTubeIngestionService(youtube, resolver=resolver),
+        publishing=YouTubePublishingService(
+            repository=ProcessingRepository(table, clock=clock),
+            classifier=build_shorts_detector(youtube, exclude_shorts=True),
+            transport=BotTokenTransport(http, "token", sleeper=lambda _s: None),
+            channel_id=config.discord_channel_id,
             clock=clock,
         ),
-        repository=ProcessingRepository(table, clock=clock),
         roster_repository=RosterRepository(table, clock=clock),
-        shorts_detector=build_shorts_detector(http, exclude_shorts=True),
         clock=clock,
     )
 
@@ -83,15 +87,15 @@ def test_a_partner_is_onboarded_then_their_next_upload_is_announced():
     http.add("HEAD", "/shorts/tiny", HttpResponse(200))
     http.add("POST", "discord.com", HttpResponse(200, text=json.dumps({"id": "555"})))
 
-    pipeline = build(http, table, clock)
+    polling = build(http, table, clock)
 
-    first = pipeline.run()
+    first = polling.run()
     assert first.sources_onboarded == 1
     assert first.announcements_published == 0
     assert table.video_records() == {}
 
     clock.advance(days=1)
-    second = pipeline.run()
+    second = polling.run()
 
     assert second.announcements_published == 1
     assert second.shorts_skipped == 1
@@ -139,10 +143,10 @@ def test_the_discord_payload_is_what_lands_in_the_channel():
     http.add("HEAD", "/shorts/", HttpResponse(303))
     http.add("POST", "discord.com", HttpResponse(200, text=json.dumps({"id": "555"})))
 
-    pipeline = build(http, table, clock)
-    pipeline.run()
+    polling = build(http, table, clock)
+    polling.run()
     clock.advance(days=1)
-    pipeline.run()
+    polling.run()
 
     post = [call for call in http.calls if call["method"] == "POST"][0]
     payload = post["json"]

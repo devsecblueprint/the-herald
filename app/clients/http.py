@@ -1,10 +1,10 @@
 """
 A very small HTTP seam.
 
-Everything that touches the network goes through ``HttpClient`` so the test
-suite can run with no network at all. The one distinction that matters is
-between a request that never reached the server (safe to retry) and one
-whose response was lost (ambiguous), because Discord delivery hangs on it.
+Every other client is built on this one, so the test suite can run with no
+network at all. The one distinction that matters is between a request that
+never reached the server (safe to retry) and one whose response was lost
+(ambiguous), because Discord delivery hangs on it.
 """
 
 import json as jsonlib

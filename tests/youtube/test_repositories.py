@@ -4,22 +4,16 @@ from datetime import datetime, timezone
 
 import pytest
 
-from app.services.youtube.clock import to_iso
-from app.services.youtube.errors import RepositoryError, RosterError, RosterWriteConflict
-from app.services.youtube.models import (
-    SKIP_REASON_SHORT,
-    STATUS_PENDING,
-    STATUS_POSTED,
-    STATUS_POSTING,
-    STATUS_SKIPPED,
-    DeliveryReceipt,
-)
-from app.services.youtube.repository import (
-    ChannelReferenceCache,
-    ProcessingRepository,
-    RosterRepository,
-)
-from tests.youtube.fakes import FakeClock, FakeTable, make_item, throttling_error
+from app.errors import RepositoryError, RosterError, RosterWriteConflict
+from app.models.youtube import (SKIP_REASON_SHORT, STATUS_PENDING,
+                                STATUS_POSTED, STATUS_POSTING, STATUS_SKIPPED,
+                                DeliveryReceipt)
+from app.repositories.youtube.channel_cache import ChannelReferenceCache
+from app.repositories.youtube.processing import ProcessingRepository
+from app.repositories.youtube.roster import RosterRepository
+from app.utils.clock import to_iso
+from tests.youtube.fakes import (FakeClock, FakeTable, make_item,
+                                 throttling_error)
 
 CHANNEL = "123456789012345678"
 

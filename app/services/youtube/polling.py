@@ -1,10 +1,12 @@
 """
 The poll itself.
 
-``YouTubePipeline`` is the only component that knows about all the stages,
-and the only place that catches exceptions. An unresolvable handle, a
-failing feed, a rejected Discord post or a throttled DynamoDB write is
-recorded as a ``SourceFailure`` and the poll continues with the next source.
+``YouTubePollingService`` does four things and delegates the rest: it loads
+the roster, asks ingestion what each source has published, hands anything
+new to publishing, and advances the source's watermark. It is also the only
+place that catches exceptions -- an unresolvable handle, a failing feed, a
+rejected Discord post or a throttled DynamoDB write is recorded as a
+``SourceFailure`` and the poll carries on with the next source.
 
 There is no announcement cap: if a partner has a busy month, every one of
 their long-form videos is announced.
@@ -14,50 +16,33 @@ import threading
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from app.services.youtube.clock import to_iso, utcnow
-from app.services.youtube.config import YouTubeConfig, YouTubeSource
-from app.services.youtube.errors import (
-    AmbiguousDeliveryError,
-    ClassificationError,
-    DistributionError,
-    RepositoryError,
-    RosterError,
-    RosterWriteConflict,
-    YouTubeError,
-)
-from app.services.youtube.logging_utils import EventLogger
-from app.services.youtube.models import (
-    SKIP_REASON_SHORT,
-    AnnouncedItem,
-    ContentItem,
-    PollResult,
-    SourceFailure,
-)
+from app.config.youtube import YouTubeConfig, YouTubeSource
+from app.errors import RosterError, RosterWriteConflict, YouTubeError
+from app.models.youtube import ContentItem, PollResult, SourceFailure
+from app.services.youtube.publishing import YouTubePublishingService
+from app.utils.clock import to_iso, utcnow
+from app.utils.logging import EventLogger
 
 
-class YouTubePipeline:
-    """Runs one poll: ingest, dedupe, classify, announce, advance."""
+class YouTubePollingService:
+    """Runs one poll: load sources, ingest, publish, advance."""
 
-    # Every stage is injected so the suite can run without AWS or a network.
+    # Every collaborator is injected so the suite runs without AWS or a network.
     # pylint: disable=too-many-arguments,too-many-positional-arguments
     # pylint: disable=too-many-instance-attributes
     def __init__(
         self,
         config: YouTubeConfig,
         ingestion,
-        distribution,
-        repository,
+        publishing: YouTubePublishingService,
         roster_repository,
-        shorts_detector,
         clock=utcnow,
         event_logger: Optional[EventLogger] = None,
     ):
         self.config = config
         self.ingestion = ingestion
-        self.distribution = distribution
-        self.repository = repository
+        self.publishing = publishing
         self.roster = roster_repository
-        self.shorts = shorts_detector
         self.clock = clock
         self.events = event_logger or EventLogger(__name__)
         self.last_result: Optional[PollResult] = None
@@ -81,7 +66,7 @@ class YouTubePipeline:
                 skipped=True,
                 sources_configured=len(self.config.sources),
                 discord_channel_id=self.config.discord_channel_id,
-                ttl_days=self.repository.ttl_days,
+                ttl_days=self.publishing.ttl_days,
             )
         try:
             return self._run()
@@ -102,10 +87,10 @@ class YouTubePipeline:
             "poll_interval_minutes": self.config.poll_interval_minutes,
             "exclude_shorts": self.config.exclude_shorts,
             "message_style": self.config.message_style,
-            "shorts_detector": getattr(self.shorts, "name", "unknown"),
+            "shorts_detector": self.publishing.detector_name,
             "discord_channel_id": self.config.discord_channel_id,
             "discord_channel_name": self.config.discord_channel_name,
-            "ttl_days": self.repository.ttl_days,
+            "ttl_days": self.publishing.ttl_days,
             "sources_configured": len(self.config.sources),
             "sources": [
                 {
@@ -128,7 +113,7 @@ class YouTubePipeline:
             started_at=started_at,
             sources_configured=len(self.config.sources),
             discord_channel_id=self.config.discord_channel_id,
-            ttl_days=self.repository.ttl_days,
+            ttl_days=self.publishing.ttl_days,
         )
 
         if not self.config.enabled:
@@ -169,7 +154,7 @@ class YouTubePipeline:
         watermarks: Dict[str, datetime],
         result: PollResult,
     ) -> None:
-        """Fetch one source and process whatever is new."""
+        """Fetch one source and hand whatever is new to publishing."""
         try:
             fetched = self.ingestion.fetch(source)
         except YouTubeError as exc:
@@ -221,7 +206,7 @@ class YouTubePipeline:
 
         settled = True
         for item in candidates:
-            if not self._process(item, source, result):
+            if not self._publish(item, source, result):
                 settled = False
 
         # All-or-nothing: the watermark moves only when every video in this
@@ -236,6 +221,28 @@ class YouTubePipeline:
             )
         else:
             watermarks[source.key] = watermark
+
+    def _publish(self, item: ContentItem, source: YouTubeSource, result: PollResult) -> bool:
+        """
+        Publish one video and fold its outcome into the poll summary.
+
+        Returns:
+            True when the video reached a terminal state and no longer holds
+            the source's watermark back.
+        """
+        outcome = self.publishing.publish(item, source)
+
+        if outcome.duplicate:
+            result.duplicates_skipped += 1
+        if outcome.skipped_short:
+            result.shorts_skipped += 1
+        if outcome.announced is not None:
+            result.announcements_published += 1
+            result.announced.append(outcome.announced)
+        if outcome.failure is not None:
+            result.add_failure(outcome.failure)
+
+        return outcome.settled
 
     def _onboard(self, source: YouTubeSource, fetched, result: PollResult) -> datetime:
         """
@@ -260,167 +267,7 @@ class YouTubePipeline:
         )
         return watermark
 
-    # -- one video ---------------------------------------------------------
-
-    def _process(self, item: ContentItem, source: YouTubeSource, result: PollResult) -> bool:
-        """
-        Take one video from claim to announcement.
-
-        Returns:
-            True when the video reached a terminal state and no longer holds
-            the source's watermark back.
-        """
-        content_id = item.dedupe_key
-
-        try:
-            claim = self.repository.claim(item, self.config.discord_channel_id)
-        except RepositoryError as exc:
-            result.add_failure(self._failure("deduplication", exc, source, item))
-            return False
-
-        if not claim.claimed:
-            result.duplicates_skipped += 1
-            self.events.debug("youtube.video.duplicate_skipped", video_id=item.content_id)
-            return claim.is_settled
-
-        self.events.event(
-            "youtube.video.claimed",
-            video_id=item.content_id,
-            discord_channel_id=self.config.discord_channel_id,
-            published_at=to_iso(item.published_at),
-            ttl=self.repository.ttl_at(self.clock()),
-        )
-
-        classified = self._classify(item, source, result, content_id)
-        if classified is None:
-            return False
-        if classified:
-            return True
-
-        return self._announce(item, source, result, content_id)
-
-    def _classify(self, item, source, result, content_id) -> Optional[bool]:
-        """
-        Decide Short vs long-form.
-
-        Returns:
-            True if the video was skipped, False if it should be announced,
-            or None if it could not be decided (the claim is released and
-            the video is retried next poll).
-        """
-        try:
-            verdict = self.shorts.classify(item)
-        except ClassificationError as exc:
-            self.events.warning(
-                "youtube.video.classification_failed", video_id=item.content_id, error=str(exc)
-            )
-            self._release(content_id)
-            result.add_failure(self._failure("classification", exc, source, item))
-            return None
-
-        self.events.debug(
-            "youtube.video.classified",
-            video_id=item.content_id,
-            is_short=verdict.is_short,
-            detector=verdict.detector,
-        )
-
-        if not verdict.is_short:
-            return False
-
-        reason = verdict.reason or SKIP_REASON_SHORT
-        try:
-            self.repository.mark_skipped(content_id, reason)
-        except RepositoryError as exc:
-            result.add_failure(self._failure("state_update", exc, source, item))
-            return None
-
-        result.shorts_skipped += 1
-        self.events.event("youtube.video.skipped", video_id=item.content_id, reason=reason)
-        return True
-
-    def _announce(self, item, source, result, content_id) -> bool:
-        """Post to Discord and record the message id."""
-        try:
-            self.repository.mark_posting(content_id)
-        except RepositoryError as exc:
-            # Nothing was sent and nothing was deleted: the record is no
-            # longer ours to advance.
-            self.events.warning(
-                "youtube.video.mark_posting_failed", video_id=item.content_id, error=str(exc)
-            )
-            result.add_failure(self._failure("state_update", exc, source, item))
-            return False
-
-        try:
-            receipt = self.distribution.distribute(item)
-        except AmbiguousDeliveryError as exc:
-            # The message may be live. A missing record is cheaper than a
-            # duplicate announcement, so the claim is kept in POSTING.
-            self.events.error(
-                "youtube.video.distribution_ambiguous", video_id=item.content_id, error=str(exc)
-            )
-            result.add_failure(self._failure("distribution_ambiguous", exc, source, item))
-            return False
-        except DistributionError as exc:
-            self.events.warning(
-                "youtube.video.distribution_failed", video_id=item.content_id, error=str(exc)
-            )
-            self._release(content_id)
-            result.add_failure(self._failure("distribution", exc, source, item))
-            return False
-
-        self.events.event(
-            "youtube.discord.posted",
-            content_id=content_id,
-            discord_channel_id=receipt.channel_id,
-            discord_message_id=receipt.message_id,
-        )
-        result.announcements_published += 1
-        result.announced.append(
-            AnnouncedItem(
-                video_id=item.content_id,
-                source_name=item.source_name,
-                youtube_channel_id=item.channel_id,
-                published_at=item.published_at,
-                discord_channel_id=receipt.channel_id,
-                discord_message_id=receipt.message_id,
-            )
-        )
-
-        try:
-            self.repository.mark_distributed(content_id, receipt)
-        except RepositoryError as exc:
-            # The post happened; only the bookkeeping failed. Keep the claim
-            # so it can never be announced twice, and alert on this.
-            self.events.error(
-                "youtube.video.state_update_failed",
-                video_id=item.content_id,
-                discord_message_id=receipt.message_id,
-                error=str(exc),
-            )
-            result.add_failure(self._failure("state_update", exc, source, item))
-            return False
-
-        self.events.event(
-            "youtube.video.distributed",
-            video_id=item.content_id,
-            discord_message_id=receipt.message_id,
-            posted_at=to_iso(receipt.posted_at),
-            ttl=self.repository.ttl_at(receipt.posted_at),
-        )
-        return True
-
     # -- helpers -----------------------------------------------------------
-
-    def _release(self, content_id: str) -> None:
-        """Give up a claim, tolerating a repository that is misbehaving."""
-        try:
-            self.repository.release(content_id)
-        except RepositoryError as exc:
-            self.events.warning(
-                "youtube.video.release_failed", video_id=content_id, error=str(exc)
-            )
 
     def _save_roster(self, watermarks, expected_revision: int, result: PollResult) -> None:
         """Rewrite the roster from the configuration, guarded on revision."""
@@ -433,17 +280,6 @@ class YouTubePipeline:
             result.add_failure(SourceFailure(stage="roster", error=str(exc)))
         except RosterError as exc:
             result.add_failure(SourceFailure(stage="roster", error=str(exc)))
-
-    @staticmethod
-    def _failure(stage: str, exc: Exception, source: YouTubeSource, item: ContentItem):
-        """Build a SourceFailure attributed to a source and a video."""
-        return SourceFailure(
-            stage=stage,
-            error=str(exc),
-            source_name=source.name,
-            source_key=source.key,
-            video_id=item.content_id,
-        )
 
     def _finish(self, result: PollResult) -> PollResult:
         """Stamp the timings and emit the completion event."""

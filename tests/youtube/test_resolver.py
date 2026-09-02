@@ -4,12 +4,15 @@ import json
 
 import pytest
 
-from app.services.youtube.config import parse_channel_reference
-from app.services.youtube.errors import ChannelResolutionError
-from app.services.youtube.http import HttpError, HttpResponse
-from app.services.youtube.repository import ChannelReferenceCache
-from app.services.youtube.resolver import ChannelResolver
-from tests.youtube.fakes import FakeClock, FakeHttpClient, FakeTable, channel_page
+from app.clients.http import HttpError, HttpResponse
+from app.clients.youtube import YouTubeClient
+from app.config.youtube import parse_channel_reference
+from app.errors import ChannelResolutionError
+from app.models.youtube import KIND_PLAYLIST, ChannelReference
+from app.repositories.youtube.channel_cache import ChannelReferenceCache
+from app.services.youtube.ingestion import ChannelResolver
+from tests.youtube.fakes import (FakeClock, FakeHttpClient, FakeTable,
+                                 channel_page)
 
 CHANNEL_ID = "UCAAAAAAAAAAAAAAAAAAAAAA"
 OTHER_CHANNEL_ID = "UCBBBBBBBBBBBBBBBBBBBBBB"
@@ -20,9 +23,8 @@ def api_response(channel_id=CHANNEL_ID):
 
 
 def build(http=None, cache=None, api_key=None, clock=None):
-    return ChannelResolver(
-        http or FakeHttpClient(), cache=cache, api_key=api_key, clock=clock or FakeClock()
-    )
+    client = YouTubeClient(http or FakeHttpClient(), api_key=api_key)
+    return ChannelResolver(client, cache=cache, clock=clock or FakeClock())
 
 
 # -- no lookup needed -------------------------------------------------------
@@ -37,8 +39,6 @@ def test_a_canonical_id_needs_no_lookup():
 
 
 def test_a_playlist_reference_is_not_resolvable():
-    from app.services.youtube.models import KIND_PLAYLIST, ChannelReference
-
     with pytest.raises(ChannelResolutionError, match="polled directly"):
         build().resolve(ChannelReference(KIND_PLAYLIST, "UUAAAAAAAAAAAAAAAAAAAAAA"))
 

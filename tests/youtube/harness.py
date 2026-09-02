@@ -1,7 +1,7 @@
 """
-A pre-wired pipeline built entirely from test doubles.
+A pre-wired polling service built entirely from test doubles.
 
-Every dependency is injected in production too, so this harness assembles
+Every collaborator is injected in production too, so this harness assembles
 exactly the same objects -- only the table, the clock, the feeds and the
 Discord transport are fakes.
 """
@@ -10,19 +10,14 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from app.services.youtube.config import YouTubeConfig, load_config
-from app.services.youtube.distribution import DiscordDistributionService
-from app.services.youtube.models import SourceFetchResult
-from app.services.youtube.pipeline import YouTubePipeline
-from app.services.youtube.repository import ProcessingRepository, RosterRepository
-from tests.youtube.fakes import (
-    FakeClock,
-    FakeTable,
-    RecordingTransport,
-    StubDetector,
-    StubIngestion,
-    make_item,
-)
+from app.config.youtube import YouTubeConfig, load_config
+from app.models.youtube import SourceFetchResult
+from app.repositories.youtube.processing import ProcessingRepository
+from app.repositories.youtube.roster import RosterRepository
+from app.services.youtube.polling import YouTubePollingService
+from app.services.youtube.publishing import YouTubePublishingService
+from tests.youtube.fakes import (FakeClock, FakeTable, RecordingTransport,
+                                 StubDetector, StubIngestion, make_item)
 
 CHANNEL_ID = "123456789012345678"
 
@@ -54,7 +49,10 @@ def build_config(sources=None, **overrides) -> YouTubeConfig:
 
 @dataclass
 class Harness:
-    """A pipeline and every double it was built from."""
+    """A polling service and every double it was built from."""
+
+    # One attribute per injected collaborator, so a test can reach any of them.
+    # pylint: disable=too-many-instance-attributes
 
     config: YouTubeConfig
     table: FakeTable
@@ -64,8 +62,8 @@ class Harness:
     transport: RecordingTransport
     repository: ProcessingRepository
     roster: RosterRepository
-    distribution: DiscordDistributionService
-    pipeline: YouTubePipeline
+    publishing: YouTubePublishingService
+    polling: YouTubePollingService
     published: Dict[str, List[Any]] = field(default_factory=dict)
 
     def publish(self, source_key: str, entries, channel_id: str = "UCxxxxxxxxxxxxxxxxxxxxxx"):
@@ -125,9 +123,10 @@ class Harness:
 
     def run(self):
         """Run one poll."""
-        return self.pipeline.run()
+        return self.polling.run()
 
 
+# pylint: disable=too-many-arguments,too-many-positional-arguments
 def build_harness(
     config: Optional[YouTubeConfig] = None,
     now: Optional[datetime] = None,
@@ -138,7 +137,7 @@ def build_harness(
     clock: Optional[FakeClock] = None,
 ) -> Harness:
     """
-    Assemble a pipeline from doubles.
+    Assemble a polling service from doubles.
 
     Pass an existing ``table`` and ``clock`` to simulate a redeploy with a
     changed configuration against the state a previous poll left behind.
@@ -157,21 +156,22 @@ def build_harness(
     ingestion = StubIngestion()
     detector = StubDetector()
     transport = RecordingTransport()
-    distribution = DiscordDistributionService(
-        transport,
-        config.discord_channel_id,
+
+    publishing = YouTubePublishingService(
+        repository=repository,
+        classifier=detector,
+        transport=transport,
+        channel_id=config.discord_channel_id,
         message_style=config.message_style,
         post_delay_seconds=post_delay_seconds,
         sleeper=lambda _seconds: None,
         clock=clock,
     )
-    pipeline = YouTubePipeline(
+    polling = YouTubePollingService(
         config=config,
         ingestion=ingestion,
-        distribution=distribution,
-        repository=repository,
+        publishing=publishing,
         roster_repository=roster,
-        shorts_detector=detector,
         clock=clock,
     )
 
@@ -184,6 +184,6 @@ def build_harness(
         transport=transport,
         repository=repository,
         roster=roster,
-        distribution=distribution,
-        pipeline=pipeline,
+        publishing=publishing,
+        polling=polling,
     )

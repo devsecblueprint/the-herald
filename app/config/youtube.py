@@ -15,26 +15,17 @@ from urllib.parse import urlparse
 
 import yaml
 
-from app.services.youtube.errors import ConfigurationError
-from app.services.youtube.models import (
-    KIND_HANDLE,
-    KIND_ID,
-    KIND_PLAYLIST,
-    KIND_USER,
-    KIND_VANITY,
-    ChannelReference,
-)
+from app.errors import ConfigurationError
+from app.models.youtube import (CHANNEL_ID_RE, KIND_HANDLE, KIND_ID,
+                                KIND_PLAYLIST, KIND_USER, KIND_VANITY,
+                                ChannelReference)
 
 DEFAULT_CONFIG_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     "static",
     "youtube_sources.yaml",
 )
 
-# A canonical channel id is exactly "UC" plus 22 id characters. Matching
-# loosely would turn a typo into a valid-looking id and poll the wrong
-# channel forever, so this anchors both ends.
-CHANNEL_ID_RE = re.compile(r"^UC[A-Za-z0-9_-]{22}$")
 HANDLE_RE = re.compile(r"^@[A-Za-z0-9._-]{3,30}$")
 PLAYLIST_ID_RE = re.compile(r"^(UU|PL|OL|FL|LL|RD)[A-Za-z0-9_-]{8,}$")
 LEGACY_NAME_RE = re.compile(r"^[A-Za-z0-9._%-]{1,100}$")

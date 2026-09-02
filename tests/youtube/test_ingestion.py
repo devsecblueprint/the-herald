@@ -4,11 +4,14 @@ from datetime import datetime, timezone
 
 import pytest
 
-from app.services.youtube.config import YouTubeSource
-from app.services.youtube.errors import FeedFetchError
-from app.services.youtube.http import HttpError, HttpResponse
-from app.services.youtube.ingestion import YouTubeIngestionService, feed_url_for
-from app.services.youtube.models import KIND_PLAYLIST, ChannelReference
+from app.clients.http import HttpError, HttpResponse
+from app.clients.youtube import YouTubeClient
+from app.config.youtube import YouTubeSource
+from app.errors import FeedFetchError
+from app.models.youtube import KIND_PLAYLIST, ChannelReference
+from app.services.youtube.ingestion import (Resolution,
+                                            YouTubeIngestionService,
+                                            feed_url_for)
 from tests.youtube.fakes import FakeHttpClient, feed_xml, make_source
 
 CHANNEL_ID = "UCAAAAAAAAAAAAAAAAAAAAAA"
@@ -26,8 +29,6 @@ class StubResolver:
         self.error = error
 
     def resolve(self, reference):
-        from app.services.youtube.resolver import Resolution
-
         if self.error:
             raise self.error
         return Resolution(self.channel_id, "page")
@@ -58,7 +59,7 @@ def test_a_playlist_source_never_needs_a_resolver():
     http = FakeHttpClient().add(
         "GET", "playlist_id=", HttpResponse(status_code=200, text=feed_xml([]))
     )
-    result = YouTubeIngestionService(http, resolver=None).fetch(playlist_source())
+    result = YouTubeIngestionService(YouTubeClient(http), resolver=None).fetch(playlist_source())
     assert result.items == []
 
 
@@ -78,7 +79,7 @@ def test_entries_become_content_items():
         channel_id=CHANNEL_ID,
     )
     source = make_source(categories=["cloud-security"])
-    items = YouTubeIngestionService(FakeHttpClient()).parse(xml, source)
+    items = YouTubeIngestionService(YouTubeClient(FakeHttpClient())).parse(xml, source)
 
     item = items[0]
     assert item.platform == "youtube"
@@ -103,21 +104,21 @@ def test_items_come_back_newest_first():
             {"video_id": "middle", "published": at(24)},
         ]
     )
-    items = YouTubeIngestionService(FakeHttpClient()).parse(xml, make_source())
+    items = YouTubeIngestionService(YouTubeClient(FakeHttpClient())).parse(xml, make_source())
     assert [item.content_id for item in items] == ["newest", "middle", "old"]
 
 
 def test_an_attribution_override_replaces_the_channel_name():
     xml = feed_xml([{"video_id": "abc123", "published": at(26)}], author="dburks_yt")
     source = make_source(attribution="Damien Burks (DSB)")
-    assert YouTubeIngestionService(FakeHttpClient()).parse(xml, source)[0].author_name == (
+    assert YouTubeIngestionService(YouTubeClient(FakeHttpClient())).parse(xml, source)[0].author_name == (
         "Damien Burks (DSB)"
     )
 
 
 def test_the_channel_name_is_used_when_there_is_no_override():
     xml = feed_xml([{"video_id": "abc123", "published": at(26)}], author="dburks_yt")
-    assert YouTubeIngestionService(FakeHttpClient()).parse(xml, make_source())[0].author_name == (
+    assert YouTubeIngestionService(YouTubeClient(FakeHttpClient())).parse(xml, make_source())[0].author_name == (
         "dburks_yt"
     )
 
@@ -126,24 +127,24 @@ def test_an_entry_without_a_video_id_is_skipped_not_fatal():
     xml = feed_xml([{"video_id": "good", "published": at(26)}]).replace(
         "<yt:videoId>good</yt:videoId>", "", 1
     )
-    assert YouTubeIngestionService(FakeHttpClient()).parse(xml, make_source()) == []
+    assert YouTubeIngestionService(YouTubeClient(FakeHttpClient())).parse(xml, make_source()) == []
 
 
 def test_an_entry_with_an_unparseable_publish_time_is_skipped():
     xml = feed_xml(
         [{"video_id": "good", "published": at(26)}, {"video_id": "bad", "published": "yesterday"}]
     )
-    items = YouTubeIngestionService(FakeHttpClient()).parse(xml, make_source())
+    items = YouTubeIngestionService(YouTubeClient(FakeHttpClient())).parse(xml, make_source())
     assert [item.content_id for item in items] == ["good"]
 
 
 def test_an_empty_feed_parses_to_nothing():
-    assert YouTubeIngestionService(FakeHttpClient()).parse(feed_xml([]), make_source()) == []
+    assert YouTubeIngestionService(YouTubeClient(FakeHttpClient())).parse(feed_xml([]), make_source()) == []
 
 
 def test_invalid_xml_is_a_feed_failure():
     with pytest.raises(FeedFetchError, match="not valid XML"):
-        YouTubeIngestionService(FakeHttpClient()).parse("<feed><oops", make_source())
+        YouTubeIngestionService(YouTubeClient(FakeHttpClient())).parse("<feed><oops", make_source())
 
 
 # -- fetching ---------------------------------------------------------------
@@ -155,7 +156,7 @@ def test_fetch_resolves_the_handle_and_reads_the_feed():
         "feeds/videos.xml",
         HttpResponse(status_code=200, text=feed_xml([{"video_id": "abc123", "published": at(26)}])),
     )
-    service = YouTubeIngestionService(http, resolver=StubResolver())
+    service = YouTubeIngestionService(YouTubeClient(http), resolver=StubResolver())
     result = service.fetch(make_source())
 
     assert result.channel_id == CHANNEL_ID
@@ -167,15 +168,15 @@ def test_fetch_resolves_the_handle_and_reads_the_feed():
 def test_an_http_error_status_is_a_feed_failure():
     http = FakeHttpClient().add("GET", "feeds/videos.xml", HttpResponse(status_code=503, text=""))
     with pytest.raises(FeedFetchError, match="HTTP 503"):
-        YouTubeIngestionService(http, resolver=StubResolver()).fetch(make_source())
+        YouTubeIngestionService(YouTubeClient(http), resolver=StubResolver()).fetch(make_source())
 
 
 def test_a_network_error_is_a_feed_failure():
     http = FakeHttpClient().add("GET", "feeds/videos.xml", HttpError("timed out"))
     with pytest.raises(FeedFetchError, match="feed fetch failed"):
-        YouTubeIngestionService(http, resolver=StubResolver()).fetch(make_source())
+        YouTubeIngestionService(YouTubeClient(http), resolver=StubResolver()).fetch(make_source())
 
 
 def test_a_channel_source_without_a_resolver_is_a_feed_failure():
     with pytest.raises(FeedFetchError, match="needs a resolver"):
-        YouTubeIngestionService(FakeHttpClient()).fetch(make_source())
+        YouTubeIngestionService(YouTubeClient(FakeHttpClient())).fetch(make_source())

@@ -10,24 +10,13 @@ not lose or repeat an announcement.
 import threading
 from datetime import datetime, timedelta, timezone
 
-import pytest
-
-from app.services.youtube.clock import to_iso
-from app.services.youtube.errors import (
-    AmbiguousDeliveryError,
-    ChannelResolutionError,
-    ClassificationError,
-    DistributionError,
-    FeedFetchError,
-)
-from app.services.youtube.models import (
-    SKIP_REASON_SHORT,
-    STATUS_PENDING,
-    STATUS_POSTED,
-    STATUS_POSTING,
-    STATUS_SKIPPED,
-)
-from app.services.youtube.shorts import ShortsVerdict
+from app.errors import (AmbiguousDeliveryError, ChannelResolutionError,
+                        ClassificationError, DistributionError, FeedFetchError,
+                        RepositoryError)
+from app.models.youtube import (SKIP_REASON_SHORT, STATUS_PENDING,
+                                STATUS_POSTED, STATUS_POSTING, STATUS_SKIPPED,
+                                ShortsVerdict)
+from app.utils.clock import to_iso
 from tests.youtube.fakes import throttling_error
 from tests.youtube.harness import CHANNEL_ID, build_config, build_harness
 
@@ -390,8 +379,6 @@ def test_a_failed_mark_distributed_leaves_a_posting_record_to_alert_on():
     original = herald.repository.mark_distributed
 
     def fail_after_posting(content_id, receipt):
-        from app.services.youtube.errors import RepositoryError
-
         raise RepositoryError("throttled")
 
     herald.repository.mark_distributed = fail_after_posting
@@ -648,11 +635,11 @@ def test_a_poll_already_in_flight_is_skipped_not_queued():
         raise FeedFetchError("done blocking")
 
     herald.ingestion.fetch = blocking_fetch
-    worker = threading.Thread(target=herald.pipeline.run)
+    worker = threading.Thread(target=herald.polling.run)
     worker.start()
     started.wait(timeout=5)
 
-    skipped = herald.pipeline.run()
+    skipped = herald.polling.run()
     release.set()
     worker.join(timeout=5)
 
@@ -701,7 +688,7 @@ def test_the_poll_summary_reports_every_counter():
 
 def test_health_reports_the_configuration_and_the_last_run():
     herald = onboarded()
-    health = herald.pipeline.health()
+    health = herald.polling.health()
 
     assert health["enabled"] is True
     assert health["poll_interval_minutes"] == 15
