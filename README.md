@@ -134,6 +134,15 @@ is documented in [docs/youtube-ingestion.md](./docs/youtube-ingestion.md).
 | `POST /trigger/youtube` | Run a YouTube poll now (`200` / `207` with failures / `409` already running) |
 | `GET /health/youtube` | YouTube configuration, configured sources, last run summary |
 
+## Documentation
+
+| Document | What it covers |
+|----------|----------------|
+| [youtube-ingestion.md](./docs/youtube-ingestion.md) | YouTube ingestion design, configuration reference, operations and runbook |
+| [discord-rate-limiting.md](./docs/discord-rate-limiting.md) | How Discord rate limits are handled |
+| [issues.md](./docs/issues.md) | Review findings raised on [PR #45](https://github.com/devsecblueprint/the-herald/pull/45#issuecomment-5503342243) |
+| [update.md](./docs/update.md) | The restructuring done in response: what moved where, the service split, and the judgment calls |
+
 ## Local Development
 
 **Prerequisites:**
@@ -205,36 +214,55 @@ invoke terraform-apply
 
 ```
 the-herald/
-├── app/
+├── app/                     # Layered by kind: clients, config, models,
+│                            # repositories, routes, services, utils
 │   ├── main.py              # FastAPI + APScheduler + Discord presence
-│   ├── models.py            # Data models (Feed, FeedsConfig)
-│   ├── clients/
+│   ├── bootstrap.py         # Dependency assembly, job/worker/Lambda entry points
+│   ├── errors.py            # Domain exceptions, shared by every layer
+│   ├── clients/             # Outbound HTTP and AWS SDK calls
+│   │   ├── http.py             # The HTTP seam every other client is built on
+│   │   ├── discord.py          # Discord message transports (bot token, webhook)
+│   │   ├── youtube.py          # Atom feeds, @handle lookup, Shorts probe
 │   │   ├── parameter_store.py  # AWS Parameter Store client
 │   │   └── dynamodb.py         # DynamoDB reminder tracking client
-│   ├── config/
-│   │   └── logger.py           # Logging configuration
-│   ├── services/
+│   ├── config/              # Configuration loading and validation
+│   │   ├── logger.py           # Logging configuration
+│   │   └── youtube.py          # Source list parsing and validation
+│   ├── models/              # Data structures shared across layers
+│   │   ├── feeds.py            # RSS models (Feed, FeedsConfig)
+│   │   └── youtube.py          # ContentItem, PollResult, states, verdicts
+│   ├── repositories/        # DynamoDB persistence
+│   │   ├── dynamodb.py         # Conditional-write helpers
+│   │   └── youtube/
+│   │       ├── processing.py      # Per-video claims and state machine
+│   │       ├── roster.py          # Source roster and watermarks
+│   │       └── channel_cache.py   # Resolved @handle → UC… id, 30-day TTL
+│   ├── routes/              # HTTP endpoints
+│   │   └── youtube.py          # Trigger and health endpoints
+│   ├── services/            # Business operations
+│   │   ├── protocols.py        # The ingestion/publishing seams
 │   │   ├── discord.py          # Discord REST API interactions
 │   │   ├── newsletter.py       # RSS feed fetching and publishing
 │   │   └── youtube/            # Partner YouTube ingestion → #content-corner
-│   │       ├── config.py           # Source list parsing and validation
-│   │       ├── resolver.py         # @handle → UC… id, memo + DynamoDB cache
-│   │       ├── ingestion.py        # Atom feed → ContentItem
-│   │       ├── shorts.py           # Long-form vs Short classification
-│   │       ├── repository.py       # Claims, state machine, source roster
-│   │       ├── distribution.py     # Discord embed and transports
-│   │       ├── pipeline.py         # The poll: the only stage-aware component
-│   │       ├── scheduler.py        # APScheduler job, worker loop, Lambda
-│   │       └── api.py              # Trigger and health endpoints
+│   │       ├── ingestion.py        # @handle → UC… id, Atom feed → ContentItem
+│   │       ├── classification.py   # Long-form vs Short
+│   │       ├── publishing.py       # One video: claim → classify → publish → record
+│   │       └── polling.py          # The poll: sources, ingestion, watermarks
 │   ├── static/
 │   │   ├── config.yaml         # RSS feed configuration
 │   │   └── youtube_sources.yaml # Approved partner YouTube channels
 │   └── utils/
+│       ├── clock.py            # UTC time helpers, injectable for tests
+│       ├── logging.py          # Structured JSON event logging
+│       ├── text.py             # Small text helpers
 │       └── secrets.py          # Vault secrets loader (optional)
 ├── docs/
-│   └── youtube-ingestion.md # YouTube ingestion design and operations
+│   ├── youtube-ingestion.md    # YouTube ingestion design and operations
+│   ├── discord-rate-limiting.md # Discord rate limit handling
+│   ├── issues.md               # PR #45 review findings
+│   └── update.md               # PR #45 restructuring: what changed and why
 ├── tests/
-│   └── youtube/             # 257 tests: no network, no AWS
+│   └── youtube/             # 266 tests: no network, no AWS
 ├── terraform/
 │   ├── main.tf              # ECS, ECR, IAM, DynamoDB, Parameter Store resources
 │   ├── data.tf              # Data sources (cluster, VPC, subnets)

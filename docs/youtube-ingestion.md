@@ -8,10 +8,10 @@ Adding an approved partner is a **configuration change** — one line with their
 today gets their next upload announced, not their back catalogue.
 
 This is the first reusable ingestion path for The Herald's longer-term role as
-DSB's content intelligence and distribution service. Ingestion and distribution
-are separated behind two small protocols ([protocols.py](../app/services/youtube/protocols.py)),
+DSB's content intelligence and distribution service. Ingestion and publishing
+are separated behind two small protocols ([protocols.py](../app/services/protocols.py)),
 so LinkedIn, podcasts or partner blogs can be added later as new ingestion
-services that emit the same `ContentItem`, with the Discord distributor
+services that emit the same `ContentItem`, with the publishing service
 untouched.
 
 ---
@@ -37,7 +37,7 @@ ProcessingRepository.claim()  conditional PutItem on video id (dedupe)
 ShortsDetector                long-form only; verdict persisted
         │
         ▼
-DiscordDistributionService    format embed → POST to #content-corner
+DiscordTransport              format embed → POST to #content-corner
         │
         ▼
 ProcessingRepository.mark_distributed()
@@ -47,11 +47,16 @@ ProcessingRepository.mark_distributed()
 Watermark advanced            past everything resolved this poll
 ```
 
-`YouTubePipeline` ([pipeline.py](../app/services/youtube/pipeline.py)) is the
-only component that knows about all the stages. It is also the only place that
-catches exceptions: an unresolvable handle, a failing feed, a rejected Discord
-post or a throttled DynamoDB write is recorded as a `SourceFailure` and the
-poll continues.
+Two services split that column. `YouTubePublishingService`
+([publishing.py](../app/services/youtube/publishing.py)) owns everything from
+`claim` down — claim, classify, publish, record — for one video at a time.
+`YouTubePollingService` ([polling.py](../app/services/youtube/polling.py))
+owns the outer loop: load the roster, ingest each source, hand anything new to
+publishing, advance the watermark.
+
+Polling is also the only place that catches exceptions: an unresolvable handle,
+a failing feed, a rejected Discord post or a throttled DynamoDB write is
+recorded as a `SourceFailure` and the poll continues.
 
 **There is no announcement cap.** If a partner has a busy month, every one of
 their long-form videos is announced — flooding #content-corner with partner
@@ -234,7 +239,7 @@ once.
 If a video can't be classified (probe timeout, unexpected status), the claim is
 released and the video is retried next poll. Guessing would mean either a Short
 in #content-corner or a partner's real video silently dropped — neither is
-acceptable, so the pipeline waits rather than guesses.
+acceptable, so the publishing service waits rather than guesses.
 
 Set `exclude_shorts: false` (or `HERALD_YOUTUBE_EXCLUDE_SHORTS=false`) to
 announce everything and skip classification entirely.
@@ -386,19 +391,22 @@ The poll is registered by `configure_youtube()` in
 another host:
 
 ```python
-from app.services.youtube import build_pipeline
-from app.services.youtube.scheduler import register_youtube_job
+from app.bootstrap import build_polling_service, register_youtube_job
 
-pipeline = build_pipeline()
-register_youtube_job(scheduler, pipeline)   # APScheduler; interval from config
+polling = build_polling_service()
+register_youtube_job(scheduler, polling)   # APScheduler; interval from config
 ```
 
-Alternatives: `run_forever(pipeline)` for a plain worker loop, or
-`make_lambda_handler(build_pipeline)` behind an EventBridge rule.
+Alternatives: `run_forever(polling)` for a plain worker loop, or
+`make_lambda_handler(build_polling_service)` behind an EventBridge rule.
+
+[`app/bootstrap.py`](../app/bootstrap.py) is the one place that assembles the
+feature's dependencies, and the only module that reaches for `boto3` or the
+environment.
 
 The job registers with `max_instances=1` and `coalesce=True` so a slow poll
 cannot stack up behind itself. Independently of the scheduler,
-`YouTubePipeline.run()` holds a non-blocking lock and returns
+`YouTubePollingService.run()` holds a non-blocking lock and returns
 `PollResult(skipped=True)` if a poll is already in flight — so the scheduled job
 and the manual trigger can never run concurrently either.
 
@@ -412,8 +420,10 @@ GET  /health/youtube     → configuration, configured sources, last run summary
 ```
 
 They answer `503 unavailable` if the feature was never configured. For another
-host, `create_fastapi_router(controller)` and `create_flask_blueprint(controller)`
-in [`api.py`](../app/services/youtube/api.py) expose the same two routes.
+host, `create_fastapi_router(controller)` in
+[`routes/youtube.py`](../app/routes/youtube.py) mounts the same two routes;
+`YouTubeTriggerController` itself knows no web framework, so another framework
+needs another adapter there and no change to the services.
 
 `POST /trigger/youtube` response body:
 
@@ -449,7 +459,7 @@ in [`api.py`](../app/services/youtube/api.py) expose the same two routes.
 
 ## Logging
 
-One JSON object per line (`app.services.youtube.logging_utils.configure_json_logging()`
+One JSON object per line (`app.utils.logging.configure_json_logging()`
 if the host has no structured logger of its own; The Herald configures its own
 handler in `app.main`):
 
@@ -573,4 +583,5 @@ cross-posting.
 Implement `IngestionService` (return `SourceFetchResult`s carrying
 `ContentItem`s) and give the item a new `platform` value. Deduplication keys are
 `"<platform>#<content id>"`, so a shared table stays collision-free. The
-pipeline, repository and Discord distributor need no changes.
+polling and publishing services, the repositories and the Discord client need
+no changes.

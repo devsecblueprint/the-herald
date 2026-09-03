@@ -6,12 +6,13 @@ It also handles timezone conversion for article publication dates.
 
 import time
 from datetime import datetime
+
 import feedparser
 import pytz
 
-from app.services.discord import DiscordService
 from app.config.logger import LoggerConfig
-from app.models import FeedsConfig, Feed
+from app.models.feeds import Feed, FeedsConfig
+from app.services.discord import DiscordService
 
 
 class NewsletterService:

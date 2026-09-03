@@ -6,11 +6,17 @@ future LinkedIn or podcast ingestion service emits the same object with a
 different ``platform`` value and the Discord distributor needs no changes.
 """
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from app.services.youtube.clock import to_iso
+from app.utils.clock import to_iso
+
+# A canonical channel id is exactly "UC" plus 22 id characters. Matching
+# loosely would turn a typo into a valid-looking id and poll the wrong
+# channel forever, so this anchors both ends.
+CHANNEL_ID_RE = re.compile(r"^UC[A-Za-z0-9_-]{22}$")
 
 # Reference kinds, in the order they appear in the configuration docs.
 KIND_HANDLE = "handle"
@@ -111,6 +117,15 @@ class SourceFailure:
             if value is not None:
                 payload[name] = value
         return payload
+
+
+@dataclass(frozen=True)
+class ShortsVerdict:
+    """Whether a video should be announced, and who decided."""
+
+    is_short: bool
+    detector: str
+    reason: Optional[str] = None
 
 
 @dataclass(frozen=True)

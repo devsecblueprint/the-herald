@@ -1,7 +1,7 @@
 """
-Structured logging for the YouTube feature.
+Structured logging.
 
-Every log line is one JSON object with an ``event`` key, so the poll can be
+Every log line is one JSON object with an ``event`` key, so a run can be
 followed in CloudWatch Logs Insights without parsing prose.
 """
 

@@ -7,26 +7,25 @@ tasks (newsletter publishing and event notifications), and maintains a
 persistent Discord gateway connection so the bot appears online.
 """
 
-import os
 import asyncio
 import logging
+import os
 import threading
 from contextlib import asynccontextmanager
 
 import discord
-from fastapi import FastAPI
-from fastapi.responses import JSONResponse
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 
-from app.clients.parameter_store import ParameterStoreClient
+from app.bootstrap import build_polling_service, register_youtube_job
 from app.clients.dynamodb import DynamoDBClient
-from app.services.newsletter import NewsletterService
+from app.clients.parameter_store import ParameterStoreClient
+from app.errors import YouTubeError
+from app.routes.youtube import YouTubeTriggerController
 from app.services.discord import DiscordService
-from app.services.youtube import YouTubeError, build_pipeline
-from app.services.youtube.api import YouTubeTriggerController
-from app.services.youtube.scheduler import register_youtube_job
-
+from app.services.newsletter import NewsletterService
 
 # ---------------------------------------------------------------------------
 # Logging Configuration
@@ -157,7 +156,7 @@ def configure_scheduler():
 
 def configure_youtube():
     """
-    Build the YouTube pipeline and register its poll, if it is configured.
+    Build the YouTube polling service and register its poll, if configured.
 
     A missing or invalid YouTube configuration is logged and skipped rather
     than raised: it is an additive feature and must not stop The Herald
@@ -168,22 +167,22 @@ def configure_youtube():
     ps_client, _ = initialize_clients()
 
     try:
-        pipeline = build_pipeline(parameter_store_client=ps_client)
+        polling = build_polling_service(parameter_store_client=ps_client)
     except YouTubeError as e:
         logger.warning(f"YouTube ingestion is not configured, skipping it: {e}")
         return
 
-    youtube_controller = YouTubeTriggerController(pipeline)
+    youtube_controller = YouTubeTriggerController(polling)
 
-    if not pipeline.config.enabled:
+    if not polling.config.enabled:
         logger.info("YouTube ingestion is configured but disabled; no job registered")
         return
 
-    register_youtube_job(scheduler, pipeline)
+    register_youtube_job(scheduler, polling)
     logger.info(
-        f"YouTube ingestion configured: {len(pipeline.config.sources)} source(s), "
-        f"every {pipeline.config.poll_interval_minutes}m, "
-        f"announcing in #{pipeline.config.discord_channel_name}"
+        f"YouTube ingestion configured: {len(polling.config.sources)} source(s), "
+        f"every {polling.config.poll_interval_minutes}m, "
+        f"announcing in #{polling.config.discord_channel_name}"
     )
 
 

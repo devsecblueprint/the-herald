@@ -2,12 +2,9 @@
 
 import pytest
 
-from app.services.youtube.config import (
-    load_config,
-    parse_channel_reference,
-    parse_playlist_id,
-)
-from app.services.youtube.errors import ConfigurationError
+from app.config.youtube import (load_config, parse_channel_reference,
+                                parse_playlist_id)
+from app.errors import ConfigurationError
 
 CHANNEL_ID = "UCAAAAAAAAAAAAAAAAAAAAAA"
 
@@ -352,7 +349,7 @@ def test_malformed_yaml_is_reported_clearly(tmp_path):
 
 
 def test_the_bundled_config_file_is_valid():
-    from app.services.youtube.config import DEFAULT_CONFIG_PATH
+    from app.config.youtube import DEFAULT_CONFIG_PATH
 
     config = load_config(DEFAULT_CONFIG_PATH, env={"HERALD_DISCORD_CHANNEL_ID": "1"})
     assert config.discord_channel_name == "content-corner"

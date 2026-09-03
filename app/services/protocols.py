@@ -1,15 +1,15 @@
 """
-The two seams that keep ingestion and distribution independent.
+The two seams that keep ingestion and publishing independent.
 
 A future LinkedIn, podcast or partner-blog integration implements
 ``IngestionService`` and emits ``ContentItem``s with a new ``platform``
 value. Because dedupe keys are ``"<platform>#<content id>"``, the shared
-table stays collision-free and the Discord distributor is untouched.
+table stays collision-free and the publishing service is untouched.
 """
 
 from typing import Protocol
 
-from app.services.youtube.models import ContentItem, DeliveryReceipt, SourceFetchResult
+from app.models.youtube import ContentItem, DeliveryReceipt, SourceFetchResult
 
 
 class IngestionService(Protocol):
@@ -26,10 +26,10 @@ class IngestionService(Protocol):
         """
 
 
-class DistributionService(Protocol):
+class PublishingService(Protocol):
     """Publishes a single content item to its destination."""
 
-    def distribute(self, item: ContentItem) -> DeliveryReceipt:
+    def deliver(self, item: ContentItem) -> DeliveryReceipt:
         """
         Publish one item and return proof of delivery.
 

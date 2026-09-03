@@ -1,8 +1,13 @@
 """
-Exception hierarchy for the YouTube ingestion feature.
+The Herald's domain exceptions.
 
-Every failure the pipeline is expected to survive is one of these. The
-pipeline records them as ``SourceFailure`` entries and carries on with the
+Errors live at the application root because every layer raises them:
+clients, repositories, configuration and services alike. Keeping them here
+is what lets a repository signal a failure without a service importing it,
+or a client without importing a service.
+
+Every failure a poll is expected to survive is one of these. The polling
+service records them as ``SourceFailure`` entries and carries on with the
 next source, so a single bad partner never stops a poll.
 """
 
@@ -21,6 +26,10 @@ class ChannelResolutionError(YouTubeError):
 
 class FeedFetchError(YouTubeError):
     """Raised when a channel or playlist feed cannot be fetched or parsed."""
+
+
+class YouTubeApiError(YouTubeError):
+    """Raised when a YouTube endpoint cannot answer the question it was asked."""
 
 
 class RosterError(YouTubeError):

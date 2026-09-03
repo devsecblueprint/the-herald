@@ -1,22 +1,38 @@
 """
-YouTube ingestion: a channel's public Atom feed in, ``ContentItem``s out.
+Ingestion: a configured source in, ``ContentItem``s out.
 
-The feed is unauthenticated and quota-free, which is why it is the primary
-source rather than the Data API. It carries no duration and no format flag,
-so Shorts are dealt with separately -- see ``shorts.py``.
+Two steps. First the source's channel reference is resolved to a canonical
+``UC...`` id -- at poll time, not at startup, so a renamed handle is one
+source's problem rather than a crash on boot. Then its Atom feed is read
+and parsed newest-first.
+
+Resolutions are cached twice: in memory for six hours and in DynamoDB for
+thirty days. Both layers expire, because a handle can be released and taken
+over by a different channel, and an immortal in-process memo would keep
+announcing the new owner's videos under the old partner's name.
+
+The feed carries no duration and no format flag, so Shorts are dealt with
+separately -- see ``classification.py``.
 """
 
-from typing import List, Optional
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 from xml.etree import ElementTree
 
-from app.services.youtube.clock import parse_iso
-from app.services.youtube.config import YouTubeSource
-from app.services.youtube.errors import FeedFetchError
-from app.services.youtube.http import HttpClient, HttpError
-from app.services.youtube.models import ContentItem, SourceFetchResult
+from app.clients.youtube import (YouTubeClient, channel_feed_url,
+                                 playlist_feed_url)
+from app.config.youtube import YouTubeSource
+from app.errors import ChannelResolutionError, FeedFetchError
+from app.models.youtube import (CHANNEL_ID_RE, KIND_ID, KIND_PLAYLIST,
+                                ChannelReference, ContentItem,
+                                SourceFetchResult)
+from app.repositories.youtube.channel_cache import ChannelReferenceCache
+from app.utils.clock import parse_iso, utcnow
+from app.utils.logging import EventLogger
 
 PLATFORM = "youtube"
-FEED_BASE_URL = "https://www.youtube.com/feeds/videos.xml"
+
+MEMO_TTL_SECONDS = 6 * 60 * 60
 
 ATOM_NS = "http://www.w3.org/2005/Atom"
 YT_NS = "http://www.youtube.com/xml/schemas/2015"
@@ -24,16 +40,87 @@ MEDIA_NS = "http://search.yahoo.com/mrss/"
 
 NAMESPACES = {"atom": ATOM_NS, "yt": YT_NS, "media": MEDIA_NS}
 
-MAX_DESCRIPTION_CHARS = 400
-
 
 def feed_url_for(source: YouTubeSource, channel_id: Optional[str]) -> str:
     """Build the Atom feed URL for a source."""
     if source.is_playlist:
-        return f"{FEED_BASE_URL}?playlist_id={source.reference.value}"
+        return playlist_feed_url(source.reference.value)
     if not channel_id:
         raise FeedFetchError(f"'{source.name}' has no resolved channel id")
-    return f"{FEED_BASE_URL}?channel_id={channel_id}"
+    return channel_feed_url(channel_id)
+
+
+@dataclass(frozen=True)
+class Resolution:
+    """A resolved channel id, and where the answer came from."""
+
+    channel_id: str
+    origin: str
+
+    @property
+    def was_looked_up(self) -> bool:
+        """True when the answer required a network call."""
+        return self.origin in ("api", "page")
+
+
+class ChannelResolver:
+    """Resolves channel references, with a memo and a DynamoDB cache."""
+
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def __init__(
+        self,
+        client: YouTubeClient,
+        cache: Optional[ChannelReferenceCache] = None,
+        memo_ttl_seconds: int = MEMO_TTL_SECONDS,
+        clock=utcnow,
+        event_logger: Optional[EventLogger] = None,
+    ):
+        self.client = client
+        self.cache = cache
+        self.memo_ttl_seconds = memo_ttl_seconds
+        self.clock = clock
+        self.events = event_logger or EventLogger(__name__)
+        self._memo: Dict[str, Tuple[str, float]] = {}
+
+    def resolve(self, reference: ChannelReference) -> Resolution:
+        """
+        Resolve a reference to a canonical ``UC...`` channel id.
+
+        Raises:
+            ChannelResolutionError: If the channel cannot be identified.
+        """
+        if reference.kind == KIND_ID:
+            return Resolution(reference.value, "config")
+
+        if reference.kind == KIND_PLAYLIST:
+            raise ChannelResolutionError(
+                "playlist sources are polled directly and have no channel reference"
+            )
+
+        key = reference.key
+        now = self.clock().timestamp()
+
+        memoized = self._memo.get(key)
+        if memoized and memoized[1] > now:
+            return Resolution(memoized[0], "memo")
+
+        if self.cache is not None:
+            cached = self.cache.get(key)
+            if cached and CHANNEL_ID_RE.match(cached):
+                self._memoize(key, cached)
+                return Resolution(cached, "cache")
+
+        channel_id, origin = self.client.resolve_channel_id(reference)
+
+        self.events.event("youtube.channel.resolved", reference=key, channel_id=channel_id)
+        self._memoize(key, channel_id)
+        if self.cache is not None:
+            self.cache.put(key, channel_id)
+        return Resolution(channel_id, origin)
+
+    def _memoize(self, key: str, channel_id: str) -> None:
+        """Store a resolution in the in-process memo with its expiry."""
+        self._memo[key] = (channel_id, self.clock().timestamp() + self.memo_ttl_seconds)
 
 
 class YouTubeIngestionService:
@@ -41,8 +128,8 @@ class YouTubeIngestionService:
 
     platform = PLATFORM
 
-    def __init__(self, http_client: HttpClient, resolver=None):
-        self.http = http_client
+    def __init__(self, client: YouTubeClient, resolver: Optional[ChannelResolver] = None):
+        self.client = client
         self.resolver = resolver
 
     def fetch(self, source: YouTubeSource) -> SourceFetchResult:
@@ -60,18 +147,8 @@ class YouTubeIngestionService:
             channel_id = self.resolver.resolve(source.reference).channel_id
 
         url = feed_url_for(source, channel_id)
+        items = self.parse(self.client.fetch_feed(url, source.name), source, channel_id)
 
-        try:
-            response = self.http.get(url)
-        except HttpError as exc:
-            raise FeedFetchError(f"'{source.name}': feed fetch failed: {exc}") from exc
-
-        if not response.ok:
-            raise FeedFetchError(
-                f"'{source.name}': feed returned HTTP {response.status_code}"
-            )
-
-        items = self.parse(response.text, source, channel_id)
         return SourceFetchResult(
             source_key=source.key,
             source_name=source.name,
