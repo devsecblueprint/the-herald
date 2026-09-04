@@ -1,0 +1,29 @@
+# ---------------------------------------------------------------------------
+# Approved DSB partner YouTube channels.
+#
+# Adding a partner is one entry here plus a deploy -- never a code change.
+# Their first poll records a starting point and announces nothing; every
+# long-form video they publish after that lands in #content-corner.
+#
+# To stop monitoring a partner, delete their entry. There is no `enabled`
+# flag: a source is either configured or it isn't. Adding one back later is
+# a fresh onboarding, and nothing published in between is announced.
+# ---------------------------------------------------------------------------
+
+youtube:
+  enabled: true
+  poll_interval_minutes: 15
+  exclude_shorts: true
+
+  # Every announcement goes here. The numeric id is supplied by the
+  # HERALD_DISCORD_CHANNEL_ID environment variable so it can differ per
+  # environment; set `discord_channel_id` here instead if you prefer.
+  discord_channel_name: content-corner
+
+  youtube_sources:
+    - name: Damien Burks
+      relationship: COMMUNITY_PARTNER
+      channel: "@damienjburks"
+      categories:
+        - cloud-security
+        - devsecops

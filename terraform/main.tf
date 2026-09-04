@@ -111,6 +111,26 @@ resource "aws_ecs_task_definition" "the_herald" {
         {
           name  = "EVENT_NOTIFICATION_INTERVAL_MINUTES"
           value = tostring(var.event_notification_interval_minutes)
+        },
+        {
+          name  = "HERALD_YOUTUBE_ENABLED"
+          value = tostring(var.youtube_enabled)
+        },
+        {
+          name  = "HERALD_YOUTUBE_POLL_INTERVAL_MINUTES"
+          value = tostring(var.youtube_poll_interval_minutes)
+        },
+        {
+          name  = "HERALD_YOUTUBE_EXCLUDE_SHORTS"
+          value = tostring(var.youtube_exclude_shorts)
+        },
+        {
+          name  = "HERALD_DISCORD_CHANNEL_ID"
+          value = var.content_corner_channel_id
+        },
+        {
+          name  = "HERALD_DEDUP_TABLE_NAME"
+          value = aws_dynamodb_table.herald_dedup.name
         }
       ]
 
@@ -291,6 +311,60 @@ resource "aws_iam_role" "ecs_task_role" {
   }
 }
 
+# ----------------------------------------------------------------------------
+# DynamoDB: YouTube deduplication, source roster and channel reference cache
+# ----------------------------------------------------------------------------
+
+resource "aws_dynamodb_table" "herald_dedup" {
+  name         = var.dedup_table_name
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "content_id"
+
+  attribute {
+    name = "content_id"
+    type = "S"
+  }
+
+  # Per-video records and cached channel references expire on their own.
+  # The source roster deliberately carries no ttl attribute: it is the only
+  # record of where each partner started, so a long polling outage must not
+  # silently expire it and re-onboard everyone.
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  tags = {
+    Name        = var.dedup_table_name
+    Environment = var.environment
+  }
+}
+
+resource "aws_iam_role_policy" "task_dedup_table" {
+  name = "the-herald-dedup-table-access"
+  role = aws_iam_role.ecs_task_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem"
+        ]
+        Resource = [aws_dynamodb_table.herald_dedup.arn]
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy" "task_parameter_store" {
   name = "the-herald-parameter-store-read"
   role = aws_iam_role.ecs_task_role.id
@@ -347,4 +421,9 @@ output "ecs_cluster_name" {
 output "cloudwatch_log_group" {
   description = "CloudWatch log group for The Herald"
   value       = aws_cloudwatch_log_group.the_herald.name
+}
+
+output "dedup_table_name" {
+  description = "DynamoDB table holding YouTube dedupe records, the source roster and cached channel references"
+  value       = aws_dynamodb_table.herald_dedup.name
 }

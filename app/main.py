@@ -7,22 +7,25 @@ tasks (newsletter publishing and event notifications), and maintains a
 persistent Discord gateway connection so the bot appears online.
 """
 
-import os
 import asyncio
 import logging
+import os
 import threading
 from contextlib import asynccontextmanager
 
 import discord
-from fastapi import FastAPI
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 
-from app.clients.parameter_store import ParameterStoreClient
+from app.bootstrap import build_polling_service, register_youtube_job
 from app.clients.dynamodb import DynamoDBClient
-from app.services.newsletter import NewsletterService
+from app.clients.parameter_store import ParameterStoreClient
+from app.errors import YouTubeError
+from app.routes.youtube import YouTubeTriggerController
 from app.services.discord import DiscordService
-
+from app.services.newsletter import NewsletterService
 
 # ---------------------------------------------------------------------------
 # Logging Configuration
@@ -59,6 +62,10 @@ logger = setup_logging(os.environ.get("LOG_LEVEL", "INFO"))
 
 parameter_store_client: ParameterStoreClient = None
 dynamodb_client: DynamoDBClient = None
+
+# Built at startup. Stays None if the YouTube feature is not configured,
+# which leaves the rest of The Herald running normally.
+youtube_controller: YouTubeTriggerController = None
 
 
 def initialize_clients() -> tuple:
@@ -144,6 +151,42 @@ def configure_scheduler():
 
 
 # ---------------------------------------------------------------------------
+# YouTube Ingestion (partner uploads announced in #content-corner)
+# ---------------------------------------------------------------------------
+
+def configure_youtube():
+    """
+    Build the YouTube polling service and register its poll, if configured.
+
+    A missing or invalid YouTube configuration is logged and skipped rather
+    than raised: it is an additive feature and must not stop The Herald
+    from publishing newsletters or sending event reminders.
+    """
+    global youtube_controller
+
+    ps_client, _ = initialize_clients()
+
+    try:
+        polling = build_polling_service(parameter_store_client=ps_client)
+    except YouTubeError as e:
+        logger.warning(f"YouTube ingestion is not configured, skipping it: {e}")
+        return
+
+    youtube_controller = YouTubeTriggerController(polling)
+
+    if not polling.config.enabled:
+        logger.info("YouTube ingestion is configured but disabled; no job registered")
+        return
+
+    register_youtube_job(scheduler, polling)
+    logger.info(
+        f"YouTube ingestion configured: {len(polling.config.sources)} source(s), "
+        f"every {polling.config.poll_interval_minutes}m, "
+        f"announcing in #{polling.config.discord_channel_name}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Discord Gateway Presence (keeps bot "Online" in Discord)
 # ---------------------------------------------------------------------------
 
@@ -210,6 +253,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting The Herald...")
     initialize_clients()
     configure_scheduler()
+    configure_youtube()
     scheduler.start()
     start_discord_presence()
     logger.info("Scheduler started. The Herald is running.")
@@ -244,6 +288,7 @@ async def health():
         "scheduler_running": scheduler.running,
         "active_jobs": len(jobs),
         "discord_connected": discord_connected,
+        "youtube_configured": youtube_controller is not None,
     }
 
 
@@ -259,3 +304,31 @@ async def trigger_event_notifications():
     """Manually trigger the event notification job (useful for testing/ops)."""
     run_event_notification_job()
     return {"status": "ok", "message": "Event notification job triggered"}
+
+
+@app.post("/trigger/youtube")
+async def trigger_youtube():
+    """
+    Run a YouTube poll now.
+
+    200 ok | 207 completed_with_errors | 409 already_running.
+    """
+    if youtube_controller is None:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unavailable", "message": "YouTube ingestion is not configured"},
+        )
+    status_code, body = youtube_controller.trigger()
+    return JSONResponse(status_code=status_code, content=body)
+
+
+@app.get("/health/youtube")
+async def health_youtube():
+    """Report YouTube ingestion configuration, sources and last run."""
+    if youtube_controller is None:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unavailable", "message": "YouTube ingestion is not configured"},
+        )
+    status_code, body = youtube_controller.health()
+    return JSONResponse(status_code=status_code, content=body)

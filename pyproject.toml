@@ -58,3 +58,8 @@ dev = [
     "isort==8.0.1",
     "pytest>=8.0.0",
 ]
+
+[tool.pytest.ini_options]
+# The repo root on sys.path so tests can import `app.*` and `tests.*`.
+pythonpath = ["."]
+testpaths = ["tests"]
