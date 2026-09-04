@@ -13,12 +13,20 @@ from typing import Any, Mapping, Optional
 from botocore.exceptions import BotoCoreError, ClientError
 
 from app.errors import RepositoryError
-from app.models.youtube import (STATUS_PENDING, STATUS_POSTED, STATUS_POSTING,
-                                STATUS_SKIPPED, TERMINAL_STATUSES, ContentItem,
-                                DeliveryReceipt)
-from app.repositories.dynamodb import (DEFAULT_KEY_ATTRIBUTE,
-                                       DEFAULT_TTL_ATTRIBUTE,
-                                       is_condition_failure)
+from app.models.youtube import (
+    STATUS_PENDING,
+    STATUS_POSTED,
+    STATUS_POSTING,
+    STATUS_SKIPPED,
+    TERMINAL_STATUSES,
+    ContentItem,
+    DeliveryReceipt,
+)
+from app.repositories.dynamodb import (
+    DEFAULT_KEY_ATTRIBUTE,
+    DEFAULT_TTL_ATTRIBUTE,
+    is_condition_failure,
+)
 from app.utils.clock import to_iso, utcnow
 
 DEFAULT_TTL_DAYS = 35
@@ -83,7 +91,9 @@ class ProcessingRepository:
             RepositoryError: If DynamoDB is unreachable or throttled.
         """
         now = self.clock()
-        stale_cutoff = int((now - timedelta(minutes=self.stale_claim_minutes)).timestamp())
+        stale_cutoff = int(
+            (now - timedelta(minutes=self.stale_claim_minutes)).timestamp()
+        )
         record = {
             self.key_attribute: item.dedupe_key,
             "platform": item.platform,
@@ -122,7 +132,9 @@ class ProcessingRepository:
             )
         except ClientError as exc:
             if is_condition_failure(exc):
-                return ClaimResult(claimed=False, status=self._status_of(item.dedupe_key))
+                return ClaimResult(
+                    claimed=False, status=self._status_of(item.dedupe_key)
+                )
             raise RepositoryError(f"claim failed for {item.dedupe_key}: {exc}") from exc
         except BotoCoreError as exc:
             raise RepositoryError(f"claim failed for {item.dedupe_key}: {exc}") from exc
@@ -184,7 +196,11 @@ class ProcessingRepository:
                 "discord_message_id = :message, posted_at = :posted_at, #ttl = :ttl"
             ),
             condition="attribute_exists(#pk) AND #status = :posting",
-            names={"#pk": self.key_attribute, "#status": "status", "#ttl": self.ttl_attribute},
+            names={
+                "#pk": self.key_attribute,
+                "#status": "status",
+                "#ttl": self.ttl_attribute,
+            },
             values={
                 ":posted": STATUS_POSTED,
                 ":posting": STATUS_POSTING,
@@ -211,7 +227,11 @@ class ProcessingRepository:
                 "skipped_at = :now, #ttl = :ttl"
             ),
             condition="attribute_exists(#pk) AND #status = :pending",
-            names={"#pk": self.key_attribute, "#status": "status", "#ttl": self.ttl_attribute},
+            names={
+                "#pk": self.key_attribute,
+                "#status": "status",
+                "#ttl": self.ttl_attribute,
+            },
             values={
                 ":skipped": STATUS_SKIPPED,
                 ":pending": STATUS_PENDING,

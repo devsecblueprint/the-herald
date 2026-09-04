@@ -16,8 +16,14 @@ from app.repositories.youtube.processing import ProcessingRepository
 from app.repositories.youtube.roster import RosterRepository
 from app.services.youtube.polling import YouTubePollingService
 from app.services.youtube.publishing import YouTubePublishingService
-from tests.youtube.fakes import (FakeClock, FakeTable, RecordingTransport,
-                                 StubDetector, StubIngestion, make_item)
+from tests.youtube.fakes import (
+    FakeClock,
+    FakeTable,
+    RecordingTransport,
+    StubDetector,
+    StubIngestion,
+    make_item,
+)
 
 CHANNEL_ID = "123456789012345678"
 
@@ -31,16 +37,18 @@ def build_config(sources=None, **overrides) -> YouTubeConfig:
             "exclude_shorts": True,
             "discord_channel_name": "content-corner",
             "discord_channel_id": CHANNEL_ID,
-            "youtube_sources": sources
-            if sources is not None
-            else [
-                {
-                    "name": "Damien Burks",
-                    "relationship": "COMMUNITY_PARTNER",
-                    "channel": "@damienjburks",
-                    "categories": ["cloud-security"],
-                }
-            ],
+            "youtube_sources": (
+                sources
+                if sources is not None
+                else [
+                    {
+                        "name": "Damien Burks",
+                        "relationship": "COMMUNITY_PARTNER",
+                        "channel": "@damienjburks",
+                        "categories": ["cloud-security"],
+                    }
+                ]
+            ),
         }
     }
     document["youtube"].update(overrides)
@@ -66,7 +74,9 @@ class Harness:
     polling: YouTubePollingService
     published: Dict[str, List[Any]] = field(default_factory=dict)
 
-    def publish(self, source_key: str, entries, channel_id: str = "UCxxxxxxxxxxxxxxxxxxxxxx"):
+    def publish(
+        self, source_key: str, entries, channel_id: str = "UCxxxxxxxxxxxxxxxxxxxxxx"
+    ):
         """
         Register what a source's feed currently contains.
 

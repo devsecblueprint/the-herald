@@ -5,12 +5,19 @@ import json
 import pytest
 from apscheduler.triggers.interval import IntervalTrigger
 
-from app.bootstrap import (JOB_ID, build_polling_service, make_lambda_handler,
-                           register_youtube_job, run_forever)
+from app.bootstrap import (
+    JOB_ID,
+    build_polling_service,
+    make_lambda_handler,
+    register_youtube_job,
+    run_forever,
+)
 from app.clients.discord import BotTokenTransport, WebhookTransport
 from app.errors import ConfigurationError
-from app.services.youtube.classification import (DataApiShortsDetector,
-                                                 ShortsUrlProbeDetector)
+from app.services.youtube.classification import (
+    DataApiShortsDetector,
+    ShortsUrlProbeDetector,
+)
 from tests.youtube.fakes import FakeHttpClient, FakeTable
 from tests.youtube.harness import build_config, build_harness
 
@@ -18,7 +25,11 @@ DOCUMENT = {
     "youtube": {
         "discord_channel_id": "123456789012345678",
         "youtube_sources": [
-            {"name": "Damien Burks", "relationship": "COMMUNITY_PARTNER", "channel": "@damienjburks"}
+            {
+                "name": "Damien Burks",
+                "relationship": "COMMUNITY_PARTNER",
+                "channel": "@damienjburks",
+            }
         ],
     }
 }
@@ -74,7 +85,9 @@ def test_parameter_store_supplies_the_token_when_the_environment_does_not():
 
 def test_no_transport_at_all_is_a_configuration_error():
     with pytest.raises(ConfigurationError, match="No Discord transport"):
-        build_polling_service(DOCUMENT, env={}, table=FakeTable(), http_client=FakeHttpClient())
+        build_polling_service(
+            DOCUMENT, env={}, table=FakeTable(), http_client=FakeHttpClient()
+        )
 
 
 def test_malformed_webhook_json_is_a_configuration_error():
@@ -113,7 +126,10 @@ def test_one_youtube_client_is_shared_by_ingestion_and_classification():
 
 def test_the_dedupe_attribute_names_are_configurable():
     polling = build(
-        env={"HERALD_DEDUP_KEY_ATTRIBUTE": "pk", "HERALD_DEDUP_TTL_ATTRIBUTE": "expires_at"}
+        env={
+            "HERALD_DEDUP_KEY_ATTRIBUTE": "pk",
+            "HERALD_DEDUP_TTL_ATTRIBUTE": "expires_at",
+        }
     )
     assert polling.publishing.repository.key_attribute == "pk"
     assert polling.publishing.repository.ttl_attribute == "expires_at"

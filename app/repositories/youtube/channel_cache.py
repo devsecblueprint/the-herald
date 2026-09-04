@@ -12,8 +12,7 @@ from typing import Optional
 
 from botocore.exceptions import BotoCoreError, ClientError
 
-from app.repositories.dynamodb import (DEFAULT_KEY_ATTRIBUTE,
-                                       DEFAULT_TTL_ATTRIBUTE)
+from app.repositories.dynamodb import DEFAULT_KEY_ATTRIBUTE, DEFAULT_TTL_ATTRIBUTE
 from app.utils.clock import to_iso, utcnow
 
 CHANNEL_CACHE_PREFIX = "youtube-channel#"
@@ -53,7 +52,9 @@ class ChannelReferenceCache:
         old owner.
         """
         try:
-            response = self.table.get_item(Key={self.key_attribute: self._item_key(reference_key)})
+            response = self.table.get_item(
+                Key={self.key_attribute: self._item_key(reference_key)}
+            )
         except (ClientError, BotoCoreError):
             return None
 
@@ -82,7 +83,9 @@ class ChannelReferenceCache:
                     "reference": reference_key,
                     "channel_id": channel_id,
                     "resolved_at": to_iso(now),
-                    self.ttl_attribute: int((now + timedelta(days=self.ttl_days)).timestamp()),
+                    self.ttl_attribute: int(
+                        (now + timedelta(days=self.ttl_days)).timestamp()
+                    ),
                 }
             )
         except (ClientError, BotoCoreError):

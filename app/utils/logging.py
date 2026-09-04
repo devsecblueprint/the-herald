@@ -57,7 +57,9 @@ class EventLogger:
     def event(self, name: str, level: int = logging.INFO, **fields: Any) -> None:
         """Emit one named event with arbitrary structured fields."""
         payload = {"event": name}
-        payload.update({key: value for key, value in fields.items() if value is not None})
+        payload.update(
+            {key: value for key, value in fields.items() if value is not None}
+        )
         self.logger.log(
             level,
             json.dumps(payload, default=str),

@@ -13,8 +13,7 @@ from typing import Any, Dict, List, Mapping, Tuple
 from botocore.exceptions import BotoCoreError, ClientError
 
 from app.errors import RosterError, RosterWriteConflict
-from app.repositories.dynamodb import (DEFAULT_KEY_ATTRIBUTE,
-                                       is_condition_failure)
+from app.repositories.dynamodb import DEFAULT_KEY_ATTRIBUTE, is_condition_failure
 from app.utils.clock import parse_iso, to_iso, utcnow
 
 ROSTER_KEY = "youtube-sources"
@@ -76,7 +75,9 @@ class RosterRepository:
         except (TypeError, ValueError):
             revision = 0
 
-        return Roster(watermarks=watermarks, revision=revision, exists=True, unreadable=unreadable)
+        return Roster(
+            watermarks=watermarks, revision=revision, exists=True, unreadable=unreadable
+        )
 
     def save(self, watermarks: Mapping[str, datetime], expected_revision: int) -> int:
         """

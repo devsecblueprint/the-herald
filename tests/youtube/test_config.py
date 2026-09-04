@@ -2,8 +2,7 @@
 
 import pytest
 
-from app.config.youtube import (load_config, parse_channel_reference,
-                                parse_playlist_id)
+from app.config.youtube import load_config, parse_channel_reference, parse_playlist_id
 from app.errors import ConfigurationError
 
 CHANNEL_ID = "UCAAAAAAAAAAAAAAAAAAAAAA"
@@ -13,11 +12,17 @@ def base_document(sources=None, **overrides):
     """A minimal valid configuration document."""
     section = {
         "discord_channel_id": "123456789012345678",
-        "youtube_sources": sources
-        if sources is not None
-        else [
-            {"name": "Damien Burks", "relationship": "COMMUNITY_PARTNER", "channel": "@damienjburks"}
-        ],
+        "youtube_sources": (
+            sources
+            if sources is not None
+            else [
+                {
+                    "name": "Damien Burks",
+                    "relationship": "COMMUNITY_PARTNER",
+                    "channel": "@damienjburks",
+                }
+            ]
+        ),
     }
     section.update(overrides)
     return {"youtube": section}
@@ -51,9 +56,10 @@ def test_handles_are_normalised_to_lower_case():
 
 
 def test_handle_url_with_trailing_path_still_resolves():
-    assert parse_channel_reference(
-        "https://www.youtube.com/@damienjburks/videos"
-    ).key == "handle:@damienjburks"
+    assert (
+        parse_channel_reference("https://www.youtube.com/@damienjburks/videos").key
+        == "handle:@damienjburks"
+    )
 
 
 def test_a_bare_name_is_rejected_as_ambiguous():
@@ -140,7 +146,11 @@ def test_relationship_is_normalised_and_labelled():
     config = load_config(
         base_document(
             sources=[
-                {"name": "DSB", "relationship": "community partner", "channel": "@thedsbcommunity"}
+                {
+                    "name": "DSB",
+                    "relationship": "community partner",
+                    "channel": "@thedsbcommunity",
+                }
             ]
         ),
         env={},
@@ -153,7 +163,9 @@ def test_relationship_is_normalised_and_labelled():
 def test_an_unknown_relationship_is_accepted_and_title_cased():
     config = load_config(
         base_document(
-            sources=[{"name": "Someone", "relationship": "ALUMNI", "channel": "@someone"}]
+            sources=[
+                {"name": "Someone", "relationship": "ALUMNI", "channel": "@someone"}
+            ]
         ),
         env={},
     )
@@ -163,7 +175,9 @@ def test_an_unknown_relationship_is_accepted_and_title_cased():
 def test_channel_id_is_accepted_as_a_legacy_alias():
     config = load_config(
         base_document(
-            sources=[{"name": "Someone", "relationship": "MEMBER", "channel_id": CHANNEL_ID}]
+            sources=[
+                {"name": "Someone", "relationship": "MEMBER", "channel_id": CHANNEL_ID}
+            ]
         ),
         env={},
     )
@@ -211,8 +225,16 @@ def test_duplicate_channels_are_rejected_case_insensitively():
         load_config(
             base_document(
                 sources=[
-                    {"name": "One", "relationship": "MEMBER", "channel": "@damienjburks"},
-                    {"name": "Two", "relationship": "MEMBER", "channel": "@DamienJBurks"},
+                    {
+                        "name": "One",
+                        "relationship": "MEMBER",
+                        "channel": "@damienjburks",
+                    },
+                    {
+                        "name": "Two",
+                        "relationship": "MEMBER",
+                        "channel": "@DamienJBurks",
+                    },
                 ]
             ),
             env={},

@@ -9,7 +9,6 @@ from pathlib import Path
 
 from invoke import task
 
-
 ECR_REPOSITORY = "the-herald"
 ECS_CLUSTER = "dsb-platform"
 ECS_SERVICE = "the-herald"
@@ -104,7 +103,9 @@ def push_and_deploy(c, tag="latest"):
 def apply(c):
     """Run terraform apply to deploy infrastructure changes."""
     print("Running terraform apply...")
-    c.run("terraform -chdir=terraform init && terraform -chdir=terraform apply -auto-approve")
+    c.run(
+        "terraform -chdir=terraform init && terraform -chdir=terraform apply -auto-approve"
+    )
 
 
 @task

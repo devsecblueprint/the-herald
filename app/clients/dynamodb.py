@@ -11,7 +11,6 @@ from typing import Optional
 import boto3
 from botocore.exceptions import ClientError, BotoCoreError
 
-
 logger = logging.getLogger(__name__)
 
 

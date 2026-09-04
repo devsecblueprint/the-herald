@@ -19,13 +19,22 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 from xml.etree import ElementTree
 
-from app.clients.youtube import (YouTubeClient, channel_feed_url,
-                                 playlist_feed_url)
+from app.clients.youtube import (
+    UploadItem,
+    YouTubeClient,
+    channel_feed_url,
+    playlist_feed_url,
+)
 from app.config.youtube import YouTubeSource
-from app.errors import ChannelResolutionError, FeedFetchError
-from app.models.youtube import (CHANNEL_ID_RE, KIND_ID, KIND_PLAYLIST,
-                                ChannelReference, ContentItem,
-                                SourceFetchResult)
+from app.errors import ChannelResolutionError, FeedFetchError, YouTubeApiError
+from app.models.youtube import (
+    CHANNEL_ID_RE,
+    KIND_ID,
+    KIND_PLAYLIST,
+    ChannelReference,
+    ContentItem,
+    SourceFetchResult,
+)
 from app.repositories.youtube.channel_cache import ChannelReferenceCache
 from app.utils.clock import parse_iso, utcnow
 from app.utils.logging import EventLogger
@@ -112,7 +121,9 @@ class ChannelResolver:
 
         channel_id, origin = self.client.resolve_channel_id(reference)
 
-        self.events.event("youtube.channel.resolved", reference=key, channel_id=channel_id)
+        self.events.event(
+            "youtube.channel.resolved", reference=key, channel_id=channel_id
+        )
         self._memoize(key, channel_id)
         if self.cache is not None:
             self.cache.put(key, channel_id)
@@ -128,23 +139,57 @@ class YouTubeIngestionService:
 
     platform = PLATFORM
 
-    def __init__(self, client: YouTubeClient, resolver: Optional[ChannelResolver] = None):
+    def __init__(
+        self,
+        client: YouTubeClient,
+        resolver: Optional[ChannelResolver] = None,
+        event_logger: Optional[EventLogger] = None,
+    ):
         self.client = client
         self.resolver = resolver
+        self.events = event_logger or EventLogger(__name__)
 
     def fetch(self, source: YouTubeSource) -> SourceFetchResult:
         """
-        Fetch and parse one source's feed.
+        Fetch and parse one source's uploads.
+
+        Channel sources are read from the YouTube Data API when the client
+        has an API key, because the unauthenticated Atom feed is throttled
+        by IP and returns 404s under load. The Atom feed remains the path
+        for playlists and the fallback when no key is configured.
 
         Raises:
             ChannelResolutionError: If the configured handle cannot be resolved.
-            FeedFetchError: If the feed cannot be fetched or parsed.
+            FeedFetchError: If the source cannot be fetched or parsed.
         """
         channel_id = None
         if not source.is_playlist:
             if self.resolver is None:
-                raise FeedFetchError(f"'{source.name}' needs a resolver to find its channel id")
+                raise FeedFetchError(
+                    f"'{source.name}' needs a resolver to find its channel id"
+                )
             channel_id = self.resolver.resolve(source.reference).channel_id
+
+        # Data API listing: channel sources only, and only with a key.
+        if channel_id and self.client.has_api_key:
+            try:
+                uploads = self.client.list_uploads(channel_id)
+                items = self._items_from_uploads(uploads, source, channel_id)
+                return SourceFetchResult(
+                    source_key=source.key,
+                    source_name=source.name,
+                    channel_id=channel_id,
+                    feed_url=f"data_api:playlistItems:{channel_id}",
+                    items=items,
+                )
+            except YouTubeApiError as exc:
+                # Fall back to the feed rather than fail the source outright.
+                self.events.warning(
+                    "youtube.source.data_api_fallback",
+                    source_name=source.name,
+                    source_key=source.key,
+                    error=str(exc),
+                )
 
         url = feed_url_for(source, channel_id)
         items = self.parse(self.client.fetch_feed(url, source.name), source, channel_id)
@@ -156,6 +201,47 @@ class YouTubeIngestionService:
             feed_url=url,
             items=items,
         )
+
+    def _items_from_uploads(
+        self,
+        uploads: List[UploadItem],
+        source: YouTubeSource,
+        channel_id: Optional[str],
+    ) -> List[ContentItem]:
+        """Map Data API uploads into content items, newest first."""
+        items: List[ContentItem] = []
+        for upload in uploads:
+            if not upload.video_id or not upload.published_at:
+                continue
+            try:
+                published_at = parse_iso(upload.published_at)
+            except ValueError:
+                continue
+
+            items.append(
+                ContentItem(
+                    platform=PLATFORM,
+                    content_id=upload.video_id,
+                    title=upload.title or upload.video_id,
+                    url=f"https://www.youtube.com/watch?v={upload.video_id}",
+                    published_at=published_at,
+                    source_name=source.name,
+                    relationship=source.relationship,
+                    categories=list(source.categories),
+                    description=upload.description or "",
+                    author_name=source.attribution or upload.channel_title,
+                    author_url=(
+                        f"https://www.youtube.com/channel/{upload.channel_id}"
+                        if upload.channel_id
+                        else None
+                    ),
+                    thumbnail_url=upload.thumbnail_url,
+                    channel_id=upload.channel_id or channel_id,
+                )
+            )
+
+        items.sort(key=lambda item: item.published_at, reverse=True)
+        return items
 
     def parse(
         self, xml_text: str, source: YouTubeSource, channel_id: Optional[str] = None
@@ -172,7 +258,9 @@ class YouTubeIngestionService:
         try:
             root = ElementTree.fromstring(xml_text or "")
         except ElementTree.ParseError as exc:
-            raise FeedFetchError(f"'{source.name}': feed is not valid XML: {exc}") from exc
+            raise FeedFetchError(
+                f"'{source.name}': feed is not valid XML: {exc}"
+            ) from exc
 
         items: List[ContentItem] = []
         for entry in root.findall("atom:entry", NAMESPACES):
@@ -183,7 +271,9 @@ class YouTubeIngestionService:
         items.sort(key=lambda item: item.published_at, reverse=True)
         return items
 
-    def _parse_entry(self, entry, source: YouTubeSource, channel_id) -> Optional[ContentItem]:
+    def _parse_entry(
+        self, entry, source: YouTubeSource, channel_id
+    ) -> Optional[ContentItem]:
         """Turn one ``<entry>`` into a ``ContentItem``, or None if unusable."""
         video_id = _text(entry.find("yt:videoId", NAMESPACES))
         published_raw = _text(entry.find("atom:published", NAMESPACES))
@@ -205,8 +295,12 @@ class YouTubeIngestionService:
                 thumbnail = thumb.get("url")
 
         author = entry.find("atom:author", NAMESPACES)
-        author_name = _text(author.find("atom:name", NAMESPACES)) if author is not None else None
-        author_url = _text(author.find("atom:uri", NAMESPACES)) if author is not None else None
+        author_name = (
+            _text(author.find("atom:name", NAMESPACES)) if author is not None else None
+        )
+        author_url = (
+            _text(author.find("atom:uri", NAMESPACES)) if author is not None else None
+        )
 
         entry_channel_id = _text(entry.find("yt:channelId", NAMESPACES)) or channel_id
 

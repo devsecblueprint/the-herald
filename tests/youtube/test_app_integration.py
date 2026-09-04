@@ -40,7 +40,9 @@ def test_the_endpoints_report_unavailable_when_youtube_is_not_configured(main):
 def test_the_trigger_endpoint_runs_a_poll_once_configured(main, monkeypatch):
     herald = build_harness(now=at(30))
     herald.publish("handle:@damienjburks", [("old", at(20))])
-    monkeypatch.setattr(main, "youtube_controller", YouTubeTriggerController(herald.polling))
+    monkeypatch.setattr(
+        main, "youtube_controller", YouTubeTriggerController(herald.polling)
+    )
 
     response = asyncio.run(main.trigger_youtube())
 
@@ -66,7 +68,9 @@ def test_a_disabled_feature_registers_no_job(main, monkeypatch):
 
     monkeypatch.setattr(main, "build_polling_service", lambda **kwargs: herald.polling)
     monkeypatch.setattr(main, "initialize_clients", lambda: (None, None))
-    monkeypatch.setattr(main, "register_youtube_job", lambda *a, **k: registered.append(a))
+    monkeypatch.setattr(
+        main, "register_youtube_job", lambda *a, **k: registered.append(a)
+    )
 
     main.configure_youtube()
 
@@ -81,7 +85,9 @@ def test_an_enabled_feature_registers_the_poll(main, monkeypatch):
 
     monkeypatch.setattr(main, "build_polling_service", lambda **kwargs: herald.polling)
     monkeypatch.setattr(main, "initialize_clients", lambda: (None, None))
-    monkeypatch.setattr(main, "register_youtube_job", lambda *a, **k: registered.append(a))
+    monkeypatch.setattr(
+        main, "register_youtube_job", lambda *a, **k: registered.append(a)
+    )
 
     main.configure_youtube()
 

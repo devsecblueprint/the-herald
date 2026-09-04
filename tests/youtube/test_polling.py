@@ -10,12 +10,22 @@ not lose or repeat an announcement.
 import threading
 from datetime import datetime, timedelta, timezone
 
-from app.errors import (AmbiguousDeliveryError, ChannelResolutionError,
-                        ClassificationError, DistributionError, FeedFetchError,
-                        RepositoryError)
-from app.models.youtube import (SKIP_REASON_SHORT, STATUS_PENDING,
-                                STATUS_POSTED, STATUS_POSTING, STATUS_SKIPPED,
-                                ShortsVerdict)
+from app.errors import (
+    AmbiguousDeliveryError,
+    ChannelResolutionError,
+    ClassificationError,
+    DistributionError,
+    FeedFetchError,
+    RepositoryError,
+)
+from app.models.youtube import (
+    SKIP_REASON_SHORT,
+    STATUS_PENDING,
+    STATUS_POSTED,
+    STATUS_POSTING,
+    STATUS_SKIPPED,
+    ShortsVerdict,
+)
 from app.utils.clock import to_iso
 from tests.youtube.fakes import throttling_error
 from tests.youtube.harness import CHANNEL_ID, build_config, build_harness
@@ -24,7 +34,11 @@ DAMIEN = "handle:@damienjburks"
 DSB = "handle:@thedsbcommunity"
 
 TWO_SOURCES = [
-    {"name": "Damien Burks", "relationship": "COMMUNITY_PARTNER", "channel": "@damienjburks"},
+    {
+        "name": "Damien Burks",
+        "relationship": "COMMUNITY_PARTNER",
+        "channel": "@damienjburks",
+    },
     {"name": "DSB", "relationship": "DSB", "channel": "@thedsbcommunity"},
 ]
 
@@ -148,7 +162,9 @@ def test_there_is_no_announcement_cap():
 def test_announcements_go_out_newest_first():
     herald = onboarded()
     herald.clock.advance(days=2)
-    herald.publish(DAMIEN, [("older", at(31, 9)), ("newest", at(31, 18)), ("middle", at(31, 12))])
+    herald.publish(
+        DAMIEN, [("older", at(31, 9)), ("newest", at(31, 18)), ("middle", at(31, 12))]
+    )
 
     assert announced_ids(herald.run()) == ["newest", "middle", "older"]
 
@@ -456,7 +472,9 @@ def test_a_source_that_fails_to_fetch_keeps_its_place_on_the_roster():
 
 def test_an_unresolvable_handle_is_one_sources_problem():
     herald = build_harness(config=build_config(TWO_SOURCES), now=at(30))
-    herald.fail(DAMIEN, ChannelResolutionError("handle:@damienjburks: channel page not found"))
+    herald.fail(
+        DAMIEN, ChannelResolutionError("handle:@damienjburks: channel page not found")
+    )
     herald.publish(DSB, [("b", at(20))])
 
     result = herald.run()
@@ -513,7 +531,9 @@ def test_adding_a_partner_back_is_a_fresh_onboarding():
 
     # While they were off the list they published something.
     trimmed.clock.advance(days=2)
-    restored = build_harness(config=build_config(TWO_SOURCES), table=herald.table, clock=herald.clock)
+    restored = build_harness(
+        config=build_config(TWO_SOURCES), table=herald.table, clock=herald.clock
+    )
     restored.publish(DAMIEN, [("a", at(20)), ("missed", at(31))])
     restored.publish(DSB, [("b", at(20))])
 
@@ -543,7 +563,9 @@ def test_rewriting_a_channel_line_reads_as_a_removal_plus_an_addition():
         clock=herald.clock,
     )
     rewritten.clock.advance(days=1)
-    rewritten.publish("id:UCAAAAAAAAAAAAAAAAAAAAAA", [("a", at(20)), ("missed", at(30, 18))])
+    rewritten.publish(
+        "id:UCAAAAAAAAAAAAAAAAAAAAAA", [("a", at(20)), ("missed", at(30, 18))]
+    )
 
     result = rewritten.run()
 
@@ -554,8 +576,16 @@ def test_rewriting_a_channel_line_reads_as_a_removal_plus_an_addition():
 
 def test_namespaces_that_share_a_name_keep_separate_state():
     sources = [
-        {"name": "Legacy User", "relationship": "MEMBER", "channel": "https://youtube.com/user/foo"},
-        {"name": "Vanity", "relationship": "MEMBER", "channel": "https://youtube.com/c/foo"},
+        {
+            "name": "Legacy User",
+            "relationship": "MEMBER",
+            "channel": "https://youtube.com/user/foo",
+        },
+        {
+            "name": "Vanity",
+            "relationship": "MEMBER",
+            "channel": "https://youtube.com/c/foo",
+        },
     ]
     herald = build_harness(config=build_config(sources), now=at(30))
     herald.publish("user:foo", [], channel_id="UCAAAAAAAAAAAAAAAAAAAAAA")

@@ -27,12 +27,10 @@ from app.clients.youtube import YouTubeClient
 from app.config.youtube import YouTubeConfig, load_config
 from app.errors import ConfigurationError
 from app.repositories.youtube.channel_cache import ChannelReferenceCache
-from app.repositories.youtube.processing import (DEFAULT_TTL_DAYS,
-                                                 ProcessingRepository)
+from app.repositories.youtube.processing import DEFAULT_TTL_DAYS, ProcessingRepository
 from app.repositories.youtube.roster import RosterRepository
 from app.services.youtube.classification import build_shorts_detector
-from app.services.youtube.ingestion import (ChannelResolver,
-                                            YouTubeIngestionService)
+from app.services.youtube.ingestion import ChannelResolver, YouTubeIngestionService
 from app.services.youtube.polling import YouTubePollingService
 from app.services.youtube.publishing import YouTubePublishingService
 from app.utils.logging import EventLogger
@@ -67,7 +65,9 @@ def build_polling_service(
         ConfigurationError: If the table or a Discord transport is missing.
     """
     env = os.environ if env is None else env
-    resolved_config = config if isinstance(config, YouTubeConfig) else load_config(config, env)
+    resolved_config = (
+        config if isinstance(config, YouTubeConfig) else load_config(config, env)
+    )
 
     key_attribute = env.get("HERALD_DEDUP_KEY_ATTRIBUTE", "content_id")
     ttl_attribute = env.get("HERALD_DEDUP_TTL_ATTRIBUTE", "ttl")
@@ -75,11 +75,14 @@ def build_polling_service(
 
     http = http_client or RequestsHttpClient()
     events = EventLogger("app.services.youtube")
-    youtube = YouTubeClient(http, api_key=env.get("HERALD_YOUTUBE_API_KEY") or None)
+    api_key = _youtube_api_key(env, parameter_store_client)
+    youtube = YouTubeClient(http, api_key=api_key)
 
-    cache = ChannelReferenceCache(table, key_attribute=key_attribute, ttl_attribute=ttl_attribute)
+    cache = ChannelReferenceCache(
+        table, key_attribute=key_attribute, ttl_attribute=ttl_attribute
+    )
     resolver = ChannelResolver(youtube, cache=cache, event_logger=events)
-    ingestion = YouTubeIngestionService(youtube, resolver=resolver)
+    ingestion = YouTubeIngestionService(youtube, resolver=resolver, event_logger=events)
 
     publishing = YouTubePublishingService(
         repository=ProcessingRepository(
@@ -112,7 +115,31 @@ def _dynamodb_table(env: Mapping[str, str]):
         raise ConfigurationError(
             "HERALD_DEDUP_TABLE_NAME is required to store YouTube dedupe records"
         )
-    return boto3.resource("dynamodb", region_name=env.get("AWS_REGION")).Table(table_name)
+    return boto3.resource("dynamodb", region_name=env.get("AWS_REGION")).Table(
+        table_name
+    )
+
+
+def _youtube_api_key(env: Mapping[str, str], parameter_store_client) -> Optional[str]:
+    """
+    Resolve the YouTube Data API key.
+
+    The environment wins so a developer can override without touching AWS;
+    otherwise it comes from Parameter Store, consistent with the Discord
+    token. A missing key is not fatal -- ingestion falls back to the public
+    Atom feed -- so any Parameter Store error is swallowed here.
+    """
+    key = env.get("HERALD_YOUTUBE_API_KEY")
+    if key:
+        return key
+
+    if parameter_store_client is not None:
+        try:
+            return parameter_store_client.get_youtube_api_key()
+        except (ValueError, AttributeError):
+            return None
+
+    return None
 
 
 def _discord_transport(env: Mapping[str, str], http, parameter_store_client):
@@ -137,7 +164,9 @@ def _discord_transport(env: Mapping[str, str], http, parameter_store_client):
                 'HERALD_DISCORD_WEBHOOKS must be JSON of {"<channel id>": "<webhook url>"}'
             ) from exc
         if not isinstance(webhooks, dict) or not webhooks:
-            raise ConfigurationError("HERALD_DISCORD_WEBHOOKS must be a non-empty JSON object")
+            raise ConfigurationError(
+                "HERALD_DISCORD_WEBHOOKS must be a non-empty JSON object"
+            )
         return WebhookTransport(http, webhooks)
 
     raise ConfigurationError(

@@ -62,7 +62,9 @@ class ConditionEvaluator:
         self.position = 0
         result = self._or()
         if self.position != len(self.tokens):
-            raise ValueError(f"Trailing tokens in condition: {self.tokens[self.position:]}")
+            raise ValueError(
+                f"Trailing tokens in condition: {self.tokens[self.position:]}"
+            )
         return result
 
     # -- grammar -----------------------------------------------------------
@@ -189,7 +191,9 @@ def apply_update(
         source = source.strip()
         attribute = names.get(target, target) if target.startswith("#") else target
         if not source.startswith(":"):
-            raise ValueError(f"Only value assignments are supported, got {assignment!r}")
+            raise ValueError(
+                f"Only value assignments are supported, got {assignment!r}"
+            )
         if source not in values:
             raise ValueError(f"Undefined expression value {source}")
         item[attribute] = values[source]

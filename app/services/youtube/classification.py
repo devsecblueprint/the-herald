@@ -13,8 +13,13 @@ from typing import Optional, Protocol
 
 from app.clients.youtube import YouTubeClient
 from app.errors import ClassificationError, YouTubeApiError
-from app.models.youtube import (SKIP_REASON_LIVE, SKIP_REASON_PREMIERE,
-                                SKIP_REASON_SHORT, ContentItem, ShortsVerdict)
+from app.models.youtube import (
+    SKIP_REASON_LIVE,
+    SKIP_REASON_PREMIERE,
+    SKIP_REASON_SHORT,
+    ContentItem,
+    ShortsVerdict,
+)
 
 # YouTube allows Shorts of up to three minutes. A video of exactly 180
 # seconds is therefore a Short.
@@ -42,7 +47,9 @@ class NullShortsDetector:
 
     name = "disabled"
 
-    def classify(self, item: ContentItem) -> ShortsVerdict:  # pylint: disable=unused-argument
+    def classify(
+        self, item: ContentItem
+    ) -> ShortsVerdict:  # pylint: disable=unused-argument
         """Never a Short; no network call is made."""
         return ShortsVerdict(is_short=False, detector=self.name)
 
@@ -137,7 +144,9 @@ class DataApiShortsDetector:
 
         seconds = details.duration_seconds
         if not seconds:
-            return self._delegate(item, f"Data API duration unusable ({details.duration!r})")
+            return self._delegate(
+                item, f"Data API duration unusable ({details.duration!r})"
+            )
 
         if seconds <= self.max_seconds:
             return ShortsVerdict(True, self.name, SKIP_REASON_SHORT)
@@ -150,7 +159,9 @@ class DataApiShortsDetector:
         return self.fallback.classify(item)
 
 
-def build_shorts_detector(client: YouTubeClient, exclude_shorts: bool = True) -> ShortsDetector:
+def build_shorts_detector(
+    client: YouTubeClient, exclude_shorts: bool = True
+) -> ShortsDetector:
     """Pick the detector implied by the configuration and the client."""
     if not exclude_shorts:
         return NullShortsDetector()

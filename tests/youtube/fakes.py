@@ -16,13 +16,22 @@ from botocore.exceptions import ClientError
 from app.clients.http import HttpError, HttpResponse
 from app.config.youtube import YouTubeSource, parse_channel_reference
 from app.errors import DistributionError
-from app.models.youtube import (ChannelReference, ContentItem, ShortsVerdict,
-                                SourceFetchResult)
+from app.models.youtube import (
+    ChannelReference,
+    ContentItem,
+    ShortsVerdict,
+    SourceFetchResult,
+)
 from app.utils.clock import to_iso
 from tests.youtube.condition import apply_update, evaluate_condition
 
 CONDITION_FAILURE = ClientError(
-    {"Error": {"Code": "ConditionalCheckFailedException", "Message": "condition failed"}},
+    {
+        "Error": {
+            "Code": "ConditionalCheckFailedException",
+            "Message": "condition failed",
+        }
+    },
     "PutItem",
 )
 
@@ -30,7 +39,12 @@ CONDITION_FAILURE = ClientError(
 def throttling_error(operation: str = "PutItem") -> ClientError:
     """A ClientError that looks like DynamoDB throttling."""
     return ClientError(
-        {"Error": {"Code": "ProvisionedThroughputExceededException", "Message": "slow down"}},
+        {
+            "Error": {
+                "Code": "ProvisionedThroughputExceededException",
+                "Message": "slow down",
+            }
+        },
         operation,
     )
 
@@ -128,7 +142,9 @@ class FakeTable:
             raise CONDITION_FAILURE
 
         item = copy.deepcopy(existing) if existing else {self.key_attribute: key}
-        self.items[key] = apply_update(item, UpdateExpression, ExpressionAttributeNames, values)
+        self.items[key] = apply_update(
+            item, UpdateExpression, ExpressionAttributeNames, values
+        )
         return {}
 
     def delete_item(
@@ -163,7 +179,9 @@ class FakeTable:
     def video_records(self) -> Dict[str, Dict[str, Any]]:
         """Every per-video record currently stored."""
         return {
-            key: value for key, value in self.items.items() if key.startswith("youtube#")
+            key: value
+            for key, value in self.items.items()
+            if key.startswith("youtube#")
         }
 
 
@@ -197,14 +215,22 @@ class FakeHttpClient:
         may be an ``HttpResponse`` or an exception instance to raise.
         """
         self.routes.append(
-            {"method": method.upper(), "contains": contains, "responses": list(responses)}
+            {
+                "method": method.upper(),
+                "contains": contains,
+                "responses": list(responses),
+            }
         )
         return self
 
-    def add_text(self, method: str, contains: str, status: int, text: str = "", headers=None):
+    def add_text(
+        self, method: str, contains: str, status: int, text: str = "", headers=None
+    ):
         """Register a single textual response."""
         return self.add(
-            method, contains, HttpResponse(status_code=status, text=text, headers=headers or {})
+            method,
+            contains,
+            HttpResponse(status_code=status, text=text, headers=headers or {}),
         )
 
     def get(self, url, *, params=None, headers=None, timeout=None):
@@ -213,7 +239,9 @@ class FakeHttpClient:
 
     def head(self, url, *, headers=None, allow_redirects=False, timeout=None):
         """Issue a recorded HEAD."""
-        return self._respond("HEAD", url, headers=headers, allow_redirects=allow_redirects)
+        return self._respond(
+            "HEAD", url, headers=headers, allow_redirects=allow_redirects
+        )
 
     def post(self, url, *, json=None, headers=None, timeout=None):
         """Issue a recorded POST."""
@@ -254,11 +282,15 @@ class RecordingTransport:
         rendered = str(payload)
         for video_id, error in self.errors.items():
             if video_id in rendered:
-                self.sent.append({"channel_id": channel_id, "payload": payload, "failed": True})
+                self.sent.append(
+                    {"channel_id": channel_id, "payload": payload, "failed": True}
+                )
                 raise error
 
         self._next_id += 1
-        self.sent.append({"channel_id": channel_id, "payload": payload, "id": str(self._next_id)})
+        self.sent.append(
+            {"channel_id": channel_id, "payload": payload, "id": str(self._next_id)}
+        )
         return str(self._next_id)
 
     @property
@@ -353,7 +385,8 @@ def make_item(
         content_id=video_id,
         title=title,
         url=f"https://www.youtube.com/watch?v={video_id}",
-        published_at=published_at or datetime(2026, 8, 26, 9, 0, 0, tzinfo=timezone.utc),
+        published_at=published_at
+        or datetime(2026, 8, 26, 9, 0, 0, tzinfo=timezone.utc),
         source_name=source_name,
         relationship=relationship,
         categories=["cloud-security"],
@@ -365,7 +398,9 @@ def make_item(
     )
 
 
-def feed_xml(entries, channel_id: str = "UCxxxxxxxxxxxxxxxxxxxxxx", author="Damien Burks") -> str:
+def feed_xml(
+    entries, channel_id: str = "UCxxxxxxxxxxxxxxxxxxxxxx", author="Damien Burks"
+) -> str:
     """
     Build a canned YouTube Atom feed.
 
@@ -376,8 +411,7 @@ def feed_xml(entries, channel_id: str = "UCxxxxxxxxxxxxxxxxxxxxxx", author="Dami
         published = entry["published"]
         if isinstance(published, datetime):
             published = to_iso(published)
-        rendered.append(
-            f"""
+        rendered.append(f"""
   <entry>
     <id>yt:video:{entry['video_id']}</id>
     <yt:videoId>{entry['video_id']}</yt:videoId>
@@ -396,8 +430,7 @@ def feed_xml(entries, channel_id: str = "UCxxxxxxxxxxxxxxxxxxxxxx", author="Dami
       <media:thumbnail url="https://i.ytimg.com/vi/{entry['video_id']}/hqdefault.jpg" width="480" height="360"/>
       <media:description>{entry.get('description', '')}</media:description>
     </media:group>
-  </entry>"""
-        )
+  </entry>""")
 
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"
@@ -410,7 +443,9 @@ def feed_xml(entries, channel_id: str = "UCxxxxxxxxxxxxxxxxxxxxxx", author="Dami
 """
 
 
-def channel_page(channel_id: str = "UCxxxxxxxxxxxxxxxxxxxxxx", marker: str = "externalId") -> str:
+def channel_page(
+    channel_id: str = "UCxxxxxxxxxxxxxxxxxxxxxx", marker: str = "externalId"
+) -> str:
     """Build a channel page carrying exactly one of the four id markers."""
     markers = {
         "externalId": f'<script>var ytInitialData = {{"externalId":"{channel_id}"}};</script>',

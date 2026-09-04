@@ -43,11 +43,17 @@ def test_a_poll_with_failures_answers_207():
 
 
 def test_a_poll_that_was_already_running_answers_409():
-    assert YouTubeTriggerController(StubPolling(PollResult(skipped=True))).trigger()[0] == 409
+    assert (
+        YouTubeTriggerController(StubPolling(PollResult(skipped=True))).trigger()[0]
+        == 409
+    )
 
 
 def test_a_disabled_feature_answers_200():
-    assert YouTubeTriggerController(StubPolling(PollResult(disabled=True))).trigger()[0] == 200
+    assert (
+        YouTubeTriggerController(StubPolling(PollResult(disabled=True))).trigger()[0]
+        == 200
+    )
 
 
 def client_for(polling):

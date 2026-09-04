@@ -2,20 +2,37 @@
 
 import pytest
 
-from app.errors import (AmbiguousDeliveryError, ClassificationError,
-                        DistributionError, RepositoryError)
-from app.models.youtube import (SKIP_REASON_SHORT, STATUS_POSTED,
-                                STATUS_POSTING, STATUS_SKIPPED, ShortsVerdict)
+from app.errors import (
+    AmbiguousDeliveryError,
+    ClassificationError,
+    DistributionError,
+    RepositoryError,
+)
+from app.models.youtube import (
+    SKIP_REASON_SHORT,
+    STATUS_POSTED,
+    STATUS_POSTING,
+    STATUS_SKIPPED,
+    ShortsVerdict,
+)
 from app.repositories.youtube.processing import ProcessingRepository
-from app.services.youtube.publishing import (DEFAULT_COLOUR,
-                                             RELATIONSHIP_COLOURS,
-                                             YouTubePublishingService,
-                                             build_message)
+from app.services.youtube.publishing import (
+    DEFAULT_COLOUR,
+    RELATIONSHIP_COLOURS,
+    YouTubePublishingService,
+    build_message,
+)
 from app.utils.clock import to_iso
 from app.utils.text import truncate
-from tests.youtube.fakes import (FakeClock, FakeTable, RecordingTransport,
-                                 StubDetector, make_item, make_source,
-                                 throttling_error)
+from tests.youtube.fakes import (
+    FakeClock,
+    FakeTable,
+    RecordingTransport,
+    StubDetector,
+    make_item,
+    make_source,
+    throttling_error,
+)
 
 CHANNEL = "123456789012345678"
 
@@ -25,7 +42,7 @@ CHANNEL = "123456789012345678"
 
 def test_the_content_line_names_the_partner():
     payload = build_message(make_item())
-    assert payload["content"] == "\U0001F4FA New from **Damien Burks** on YouTube"
+    assert payload["content"] == "\U0001f4fa New from **Damien Burks** on YouTube"
 
 
 def test_announcements_never_ping_a_channel():
@@ -48,7 +65,11 @@ def test_the_embed_carries_the_video():
 def test_the_raw_url_lives_in_a_field_so_discord_adds_no_second_preview():
     embed = build_message(make_item("abc123"))["embeds"][0]
     assert embed["fields"] == [
-        {"name": "Watch", "value": "https://www.youtube.com/watch?v=abc123", "inline": False}
+        {
+            "name": "Watch",
+            "value": "https://www.youtube.com/watch?v=abc123",
+            "inline": False,
+        }
     ]
     assert "youtube.com" not in build_message(make_item("abc123"))["content"]
 
@@ -56,11 +77,16 @@ def test_the_raw_url_lives_in_a_field_so_discord_adds_no_second_preview():
 @pytest.mark.parametrize("relationship", sorted(RELATIONSHIP_COLOURS))
 def test_the_colour_is_keyed_to_the_relationship(relationship):
     item = make_item(relationship=relationship)
-    assert build_message(item)["embeds"][0]["color"] == RELATIONSHIP_COLOURS[relationship]
+    assert (
+        build_message(item)["embeds"][0]["color"] == RELATIONSHIP_COLOURS[relationship]
+    )
 
 
 def test_an_unknown_relationship_gets_the_default_colour():
-    assert build_message(make_item(relationship="ALUMNI"))["embeds"][0]["color"] == DEFAULT_COLOUR
+    assert (
+        build_message(make_item(relationship="ALUMNI"))["embeds"][0]["color"]
+        == DEFAULT_COLOUR
+    )
 
 
 def test_a_long_description_is_trimmed_to_400_characters():

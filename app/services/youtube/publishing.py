@@ -22,10 +22,19 @@ from typing import Any, Dict, Optional
 
 from app.clients.discord import DiscordTransport
 from app.config.youtube import YouTubeSource
-from app.errors import (AmbiguousDeliveryError, ClassificationError,
-                        DistributionError, RepositoryError)
-from app.models.youtube import (SKIP_REASON_SHORT, AnnouncedItem, ContentItem,
-                                DeliveryReceipt, SourceFailure)
+from app.errors import (
+    AmbiguousDeliveryError,
+    ClassificationError,
+    DistributionError,
+    RepositoryError,
+)
+from app.models.youtube import (
+    SKIP_REASON_SHORT,
+    AnnouncedItem,
+    ContentItem,
+    DeliveryReceipt,
+    SourceFailure,
+)
 from app.repositories.youtube.processing import ProcessingRepository
 from app.utils.clock import to_iso, utcnow
 from app.utils.logging import EventLogger
@@ -89,7 +98,7 @@ def build_message(item: ContentItem, style: str = "embed") -> Dict[str, Any]:
         embed["thumbnail"] = {"url": item.thumbnail_url}
 
     return {
-        "content": f"\U0001F4FA New from **{item.source_name}** on YouTube",
+        "content": f"\U0001f4fa New from **{item.source_name}** on YouTube",
         "embeds": [embed],
         "allowed_mentions": NO_MENTIONS,
     }
@@ -164,7 +173,9 @@ class YouTubePublishingService:
             )
 
         if not claim.claimed:
-            self.events.debug("youtube.video.duplicate_skipped", video_id=item.content_id)
+            self.events.debug(
+                "youtube.video.duplicate_skipped", video_id=item.content_id
+            )
             return PublishOutcome(settled=claim.is_settled, duplicate=True)
 
         self.events.event(
@@ -197,7 +208,9 @@ class YouTubePublishingService:
             verdict = self.classifier.classify(item)
         except ClassificationError as exc:
             self.events.warning(
-                "youtube.video.classification_failed", video_id=item.content_id, error=str(exc)
+                "youtube.video.classification_failed",
+                video_id=item.content_id,
+                error=str(exc),
             )
             self._release(content_id)
             return PublishOutcome(
@@ -222,7 +235,9 @@ class YouTubePublishingService:
                 settled=False, failure=_failure("state_update", exc, source, item)
             )
 
-        self.events.event("youtube.video.skipped", video_id=item.content_id, reason=reason)
+        self.events.event(
+            "youtube.video.skipped", video_id=item.content_id, reason=reason
+        )
         return PublishOutcome(settled=True, skipped_short=True)
 
     # -- announcement ------------------------------------------------------
@@ -237,7 +252,9 @@ class YouTubePublishingService:
             # Nothing was sent and nothing was deleted: the record is no
             # longer ours to advance.
             self.events.warning(
-                "youtube.video.mark_posting_failed", video_id=item.content_id, error=str(exc)
+                "youtube.video.mark_posting_failed",
+                video_id=item.content_id,
+                error=str(exc),
             )
             return PublishOutcome(
                 settled=False, failure=_failure("state_update", exc, source, item)
@@ -249,14 +266,19 @@ class YouTubePublishingService:
             # The message may be live. A missing record is cheaper than a
             # duplicate announcement, so the claim is kept in POSTING.
             self.events.error(
-                "youtube.video.distribution_ambiguous", video_id=item.content_id, error=str(exc)
+                "youtube.video.distribution_ambiguous",
+                video_id=item.content_id,
+                error=str(exc),
             )
             return PublishOutcome(
-                settled=False, failure=_failure("distribution_ambiguous", exc, source, item)
+                settled=False,
+                failure=_failure("distribution_ambiguous", exc, source, item),
             )
         except DistributionError as exc:
             self.events.warning(
-                "youtube.video.distribution_failed", video_id=item.content_id, error=str(exc)
+                "youtube.video.distribution_failed",
+                video_id=item.content_id,
+                error=str(exc),
             )
             self._release(content_id)
             return PublishOutcome(
@@ -315,7 +337,9 @@ class YouTubePublishingService:
         if self._has_posted and self.post_delay_seconds > 0:
             self.sleeper(self.post_delay_seconds)
 
-        message_id = self.transport.send(self.channel_id, build_message(item, self.message_style))
+        message_id = self.transport.send(
+            self.channel_id, build_message(item, self.message_style)
+        )
         self._has_posted = True
 
         return DeliveryReceipt(

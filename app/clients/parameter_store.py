@@ -10,7 +10,6 @@ from typing import Optional, Dict
 import boto3
 from botocore.exceptions import ClientError, BotoCoreError
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -138,6 +137,21 @@ class ParameterStoreClient:
         if not guild_id:
             raise ValueError("Discord guild ID is empty or None")
         return guild_id
+
+    def get_youtube_api_key(self) -> str:
+        """
+        Retrieve the YouTube Data API key from Parameter Store.
+
+        Returns:
+            YouTube Data API key
+
+        Raises:
+            ValueError: If key retrieval fails
+        """
+        api_key = self.get_parameter("youtube-api-key", decrypt=True)
+        if not api_key:
+            raise ValueError("YouTube API key is empty or None")
+        return api_key
 
     def clear_cache(self) -> None:
         """

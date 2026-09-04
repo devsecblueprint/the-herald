@@ -12,7 +12,7 @@
 
 youtube:
   enabled: true
-  poll_interval_minutes: 15
+  poll_interval_minutes: 1
   exclude_shorts: true
 
   # Every announcement goes here. The numeric id is supplied by the
@@ -21,9 +21,27 @@ youtube:
   discord_channel_name: content-corner
 
   youtube_sources:
-    - name: Damien Burks
+    - name: TechTual Chatter
       relationship: COMMUNITY_PARTNER
-      channel: "@damienjburks"
+      channel: "@TechTualChatter"
       categories:
-        - cloud-security
-        - devsecops
+        - cyber-security
+        - tech-news
+    - name: Techpreneurship Academy
+      relationship: COMMUNITY_PARTNER
+      channel: "@TechpreneurshipAcademy"
+      categories:
+        - tech-news
+    - name: STEM With Ashley
+      relationship: COMMUNITY_PARTNER
+      channel: "@STEMWithAshley"
+      categories:
+        - tech-news
+    - name: GRC Engineering Club
+      relationship: COMMUNITY_PARTNER
+      channel: "@grcengineeringclub"
+      categories:
+        - tech-news
+        - cyber-security
+        - grc-engineering
+        - security-engineering

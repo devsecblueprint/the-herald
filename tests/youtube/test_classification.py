@@ -7,13 +7,14 @@ import pytest
 from app.clients.http import HttpError, HttpResponse
 from app.clients.youtube import YouTubeClient, parse_duration_seconds
 from app.errors import ClassificationError
-from app.models.youtube import (SKIP_REASON_LIVE, SKIP_REASON_PREMIERE,
-                                SKIP_REASON_SHORT)
-from app.services.youtube.classification import (DataApiShortsDetector,
-                                                 HeuristicShortsDetector,
-                                                 NullShortsDetector,
-                                                 ShortsUrlProbeDetector,
-                                                 build_shorts_detector)
+from app.models.youtube import SKIP_REASON_LIVE, SKIP_REASON_PREMIERE, SKIP_REASON_SHORT
+from app.services.youtube.classification import (
+    DataApiShortsDetector,
+    HeuristicShortsDetector,
+    NullShortsDetector,
+    ShortsUrlProbeDetector,
+    build_shorts_detector,
+)
 from tests.youtube.fakes import FakeHttpClient, make_item
 
 
@@ -29,7 +30,11 @@ def api_video(duration=None, broadcast="none"):
 
 @pytest.mark.parametrize(
     "title, description",
-    [("A quick tip #shorts", ""), ("A quick tip", "watch more #Shorts"), ("#short", "")],
+    [
+        ("A quick tip #shorts", ""),
+        ("A quick tip", "watch more #Shorts"),
+        ("#short", ""),
+    ],
 )
 def test_the_heuristic_spots_a_shorts_tag(title, description):
     verdict = HeuristicShortsDetector().classify(
@@ -66,7 +71,10 @@ def test_a_long_form_video_is_redirected_to_watch():
         "/shorts/",
         HttpResponse(status_code=303, headers={"Location": "/watch?v=abc123"}),
     )
-    assert ShortsUrlProbeDetector(YouTubeClient(http)).classify(make_item()).is_short is False
+    assert (
+        ShortsUrlProbeDetector(YouTubeClient(http)).classify(make_item()).is_short
+        is False
+    )
 
 
 def test_the_probe_does_not_follow_redirects():
@@ -110,13 +118,17 @@ def test_duration_is_compared_against_the_180_second_boundary(duration, is_short
 
 
 def test_a_live_broadcast_is_not_announced():
-    http = FakeHttpClient().add("GET", "googleapis.com", api_video("PT0S", broadcast="live"))
+    http = FakeHttpClient().add(
+        "GET", "googleapis.com", api_video("PT0S", broadcast="live")
+    )
     verdict = DataApiShortsDetector(YouTubeClient(http, "key")).classify(make_item())
     assert (verdict.is_short, verdict.reason) == (True, SKIP_REASON_LIVE)
 
 
 def test_an_unfinished_premiere_is_not_announced():
-    http = FakeHttpClient().add("GET", "googleapis.com", api_video("P0D", broadcast="upcoming"))
+    http = FakeHttpClient().add(
+        "GET", "googleapis.com", api_video("P0D", broadcast="upcoming")
+    )
     verdict = DataApiShortsDetector(YouTubeClient(http, "key")).classify(make_item())
     assert (verdict.is_short, verdict.reason) == (True, SKIP_REASON_PREMIERE)
 
@@ -161,7 +173,9 @@ def test_an_api_outage_falls_back_to_the_probe():
 
 
 def test_an_api_outage_with_no_fallback_is_undecidable():
-    http = FakeHttpClient().add("GET", "googleapis.com", HttpResponse(status_code=500, text=""))
+    http = FakeHttpClient().add(
+        "GET", "googleapis.com", HttpResponse(status_code=500, text="")
+    )
     with pytest.raises(ClassificationError, match="HTTP 500"):
         DataApiShortsDetector(YouTubeClient(http, "key")).classify(make_item())
 
@@ -169,7 +183,11 @@ def test_an_api_outage_with_no_fallback_is_undecidable():
 def test_an_unknown_video_falls_back():
     http = (
         FakeHttpClient()
-        .add("GET", "googleapis.com", HttpResponse(status_code=200, text=json.dumps({"items": []})))
+        .add(
+            "GET",
+            "googleapis.com",
+            HttpResponse(status_code=200, text=json.dumps({"items": []})),
+        )
         .add("HEAD", "/shorts/", HttpResponse(status_code=303))
     )
     detector = DataApiShortsDetector(
@@ -206,7 +224,9 @@ def test_disabling_shorts_filtering_skips_classification_entirely():
 
 
 def test_the_probe_is_the_default_detector():
-    assert isinstance(build_shorts_detector(YouTubeClient(FakeHttpClient())), ShortsUrlProbeDetector)
+    assert isinstance(
+        build_shorts_detector(YouTubeClient(FakeHttpClient())), ShortsUrlProbeDetector
+    )
 
 
 def test_an_api_key_promotes_the_data_api_detector_with_the_probe_behind_it():

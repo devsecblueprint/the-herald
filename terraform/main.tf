@@ -254,6 +254,25 @@ resource "aws_ssm_parameter" "guild_id" {
   }
 }
 
+resource "aws_ssm_parameter" "youtube_api_key" {
+  name        = "${var.parameter_store_prefix}youtube-api-key"
+  description = "YouTube Data API v3 key for reliable upload listing"
+  type        = "SecureString"
+  value       = var.YOUTUBE_API_KEY
+
+  key_id = var.kms_key_id != "" ? var.kms_key_id : null
+
+  tags = {
+    Name        = "the-herald-youtube-api-key"
+    Environment = var.environment
+    Purpose     = "YouTube Data API access"
+  }
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
 # ----------------------------------------------------------------------------
 # IAM Roles and Policies
 # ----------------------------------------------------------------------------
@@ -316,7 +335,7 @@ resource "aws_iam_role" "ecs_task_role" {
 # ----------------------------------------------------------------------------
 
 resource "aws_dynamodb_table" "herald_dedup" {
-  name         = var.dedup_table_name
+  name         = "the-herald-dedup"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "content_id"
 
@@ -339,7 +358,6 @@ resource "aws_dynamodb_table" "herald_dedup" {
   }
 
   tags = {
-    Name        = var.dedup_table_name
     Environment = var.environment
   }
 }
@@ -380,7 +398,8 @@ resource "aws_iam_role_policy" "task_parameter_store" {
         ]
         Resource = [
           aws_ssm_parameter.discord_token.arn,
-          aws_ssm_parameter.guild_id.arn
+          aws_ssm_parameter.guild_id.arn,
+          aws_ssm_parameter.youtube_api_key.arn
         ]
       },
       {

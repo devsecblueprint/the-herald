@@ -14,6 +14,12 @@ variable "DISCORD_GUILD_ID" {
   type        = string
 }
 
+variable "YOUTUBE_API_KEY" {
+  description = "YouTube Data API v3 key"
+  type        = string
+  sensitive   = true
+}
+
 # AWS Configuration
 variable "aws_region" {
   description = "AWS region where resources will be created"
@@ -95,7 +101,7 @@ variable "youtube_enabled" {
 variable "youtube_poll_interval_minutes" {
   description = "Interval in minutes between YouTube polls"
   type        = number
-  default     = 15
+  default     = 30 # making it run every half hour - google quota
 }
 
 variable "youtube_exclude_shorts" {
@@ -107,10 +113,5 @@ variable "youtube_exclude_shorts" {
 variable "content_corner_channel_id" {
   description = "Numeric Discord channel id for #content-corner, where partner uploads are announced"
   type        = string
-}
-
-variable "dedup_table_name" {
-  description = "DynamoDB table for YouTube dedupe records, the source roster and cached channel references"
-  type        = string
-  default     = "the-herald-dedup"
+  default     = "1320592138689319073"
 }

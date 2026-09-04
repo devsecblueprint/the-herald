@@ -31,6 +31,7 @@ from app.services.newsletter import NewsletterService
 # Logging Configuration
 # ---------------------------------------------------------------------------
 
+
 def setup_logging(log_level: str = "INFO") -> logging.Logger:
     """Configure structured logging for container stdout."""
     logger = logging.getLogger()
@@ -88,6 +89,7 @@ def initialize_clients() -> tuple:
 # ---------------------------------------------------------------------------
 # Scheduled Job Functions
 # ---------------------------------------------------------------------------
+
 
 def run_newsletter_job():
     """Fetch RSS feeds and publish new articles to Discord channels."""
@@ -154,6 +156,7 @@ def configure_scheduler():
 # YouTube Ingestion (partner uploads announced in #content-corner)
 # ---------------------------------------------------------------------------
 
+
 def configure_youtube():
     """
     Build the YouTube polling service and register its poll, if configured.
@@ -192,6 +195,7 @@ def configure_youtube():
 
 discord_client: discord.Client = None
 _discord_thread: threading.Thread = None
+_discord_loop: asyncio.AbstractEventLoop = None
 
 
 def start_discord_presence():
@@ -206,22 +210,31 @@ def start_discord_presence():
         logger.error(f"Cannot start Discord presence: {e}")
         return
 
-    intents = discord.Intents.default()
-    discord_client = discord.Client(intents=intents)
-
-    @discord_client.event
-    async def on_ready():
-        logger.info(f"Discord presence connected as {discord_client.user} (ID: {discord_client.user.id})")
-        await discord_client.change_presence(
-            activity=discord.Activity(
-                type=discord.ActivityType.watching,
-                name="over the community",
-            )
-        )
-
     def _run_bot():
+        global discord_client, _discord_loop
+
+        # Create the event loop for this thread and build the client on it,
+        # so all discord.py internals are bound to this same loop.
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+        _discord_loop = loop
+
+        intents = discord.Intents.default()
+        discord_client = discord.Client(intents=intents)
+
+        @discord_client.event
+        async def on_ready():
+            logger.info(
+                f"Discord presence connected as {discord_client.user} "
+                f"(ID: {discord_client.user.id})"
+            )
+            await discord_client.change_presence(
+                activity=discord.Activity(
+                    type=discord.ActivityType.watching,
+                    name="over the community",
+                )
+            )
+
         try:
             loop.run_until_complete(discord_client.start(token))
         except Exception as e:
@@ -229,22 +242,33 @@ def start_discord_presence():
         finally:
             loop.close()
 
-    _discord_thread = threading.Thread(target=_run_bot, daemon=True, name="discord-presence")
+    _discord_thread = threading.Thread(
+        target=_run_bot, daemon=True, name="discord-presence"
+    )
     _discord_thread.start()
     logger.info("Discord presence thread started")
 
 
 async def stop_discord_presence():
-    """Gracefully close the Discord gateway connection."""
-    global discord_client
-    if discord_client and not discord_client.is_closed():
-        await discord_client.close()
-        logger.info("Discord presence connection closed")
+    """Gracefully close the Discord gateway connection on its own loop."""
+    if (
+        discord_client is not None
+        and _discord_loop is not None
+        and not discord_client.is_closed()
+    ):
+        # close() must run on the loop the client was created on.
+        future = asyncio.run_coroutine_threadsafe(discord_client.close(), _discord_loop)
+        try:
+            future.result(timeout=10)
+            logger.info("Discord presence connection closed")
+        except Exception as e:
+            logger.error(f"Error closing Discord presence: {e}")
 
 
 # ---------------------------------------------------------------------------
 # FastAPI Application with Lifespan
 # ---------------------------------------------------------------------------
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -277,11 +301,16 @@ app = FastAPI(
 # API Endpoints
 # ---------------------------------------------------------------------------
 
+
 @app.get("/health")
 async def health():
     """Health check endpoint for ECS container health monitoring."""
     jobs = scheduler.get_jobs()
-    discord_connected = discord_client is not None and not discord_client.is_closed() and discord_client.is_ready()
+    discord_connected = (
+        discord_client is not None
+        and not discord_client.is_closed()
+        and discord_client.is_ready()
+    )
     return {
         "status": "healthy",
         "service": "the-herald",
@@ -316,7 +345,10 @@ async def trigger_youtube():
     if youtube_controller is None:
         return JSONResponse(
             status_code=503,
-            content={"status": "unavailable", "message": "YouTube ingestion is not configured"},
+            content={
+                "status": "unavailable",
+                "message": "YouTube ingestion is not configured",
+            },
         )
     status_code, body = youtube_controller.trigger()
     return JSONResponse(status_code=status_code, content=body)
@@ -328,7 +360,10 @@ async def health_youtube():
     if youtube_controller is None:
         return JSONResponse(
             status_code=503,
-            content={"status": "unavailable", "message": "YouTube ingestion is not configured"},
+            content={
+                "status": "unavailable",
+                "message": "YouTube ingestion is not configured",
+            },
         )
     status_code, body = youtube_controller.health()
     return JSONResponse(status_code=status_code, content=body)

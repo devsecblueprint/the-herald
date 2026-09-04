@@ -49,7 +49,9 @@ class _RetryingTransport:
         self.base_delay = base_delay
         self.sleeper = sleeper
 
-    def _post(self, url: str, payload: Mapping[str, Any], headers: Dict[str, str]) -> str:
+    def _post(
+        self, url: str, payload: Mapping[str, Any], headers: Dict[str, str]
+    ) -> str:
         """POST with rate-limit and 5xx retries, then interpret the response."""
         last_error = "no attempt was made"
 
@@ -58,7 +60,9 @@ class _RetryingTransport:
                 response = self.http.post(url, json=dict(payload), headers=headers)
             except HttpResponseIncomplete as exc:
                 # The request was on the wire. The message may be live.
-                raise AmbiguousDeliveryError(f"delivery outcome unknown: {exc}") from exc
+                raise AmbiguousDeliveryError(
+                    f"delivery outcome unknown: {exc}"
+                ) from exc
             except HttpError as exc:
                 last_error = str(exc)
                 if attempt == self.max_retries - 1:

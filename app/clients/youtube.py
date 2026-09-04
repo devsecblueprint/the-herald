@@ -18,8 +18,19 @@ from typing import Any, Mapping, Optional, Tuple
 
 from app.clients.http import HttpClient, HttpError
 from app.errors import ChannelResolutionError, FeedFetchError, YouTubeApiError
-from app.models.youtube import (CHANNEL_ID_RE, KIND_HANDLE, KIND_USER,
-                                KIND_VANITY, ChannelReference)
+from app.models.youtube import (
+    CHANNEL_ID_RE,
+    KIND_HANDLE,
+    KIND_USER,
+    KIND_VANITY,
+    ChannelReference,
+)
+
+DATA_API_PLAYLIST_ITEMS_URL = "https://www.googleapis.com/youtube/v3/playlistItems"
+
+# The Atom feed only ever exposes the latest 15 entries, so a single page of
+# uploads is the equivalent breadth for a poll and keeps quota at one unit.
+DEFAULT_UPLOADS_PAGE_SIZE = 15
 
 FEED_BASE_URL = "https://www.youtube.com/feeds/videos.xml"
 SHORTS_URL_TEMPLATE = "https://www.youtube.com/shorts/{video_id}"
@@ -37,10 +48,22 @@ DURATION_RE = re.compile(
 # enough, so a single markup change does not break resolution.
 PAGE_MARKERS: Tuple[Tuple[str, str], ...] = (
     ("externalId", r'"externalId"\s*:\s*"(UC[A-Za-z0-9_-]{22})"'),
-    ("canonical", r'<link[^>]*rel="canonical"[^>]*href="[^"]*?/channel/(UC[A-Za-z0-9_-]{22})"'),
-    ("canonical", r'<link[^>]*href="[^"]*?/channel/(UC[A-Za-z0-9_-]{22})"[^>]*rel="canonical"'),
-    ("identifier", r'<meta[^>]*itemprop="identifier"[^>]*content="(UC[A-Za-z0-9_-]{22})"'),
-    ("identifier", r'<meta[^>]*content="(UC[A-Za-z0-9_-]{22})"[^>]*itemprop="identifier"'),
+    (
+        "canonical",
+        r'<link[^>]*rel="canonical"[^>]*href="[^"]*?/channel/(UC[A-Za-z0-9_-]{22})"',
+    ),
+    (
+        "canonical",
+        r'<link[^>]*href="[^"]*?/channel/(UC[A-Za-z0-9_-]{22})"[^>]*rel="canonical"',
+    ),
+    (
+        "identifier",
+        r'<meta[^>]*itemprop="identifier"[^>]*content="(UC[A-Za-z0-9_-]{22})"',
+    ),
+    (
+        "identifier",
+        r'<meta[^>]*content="(UC[A-Za-z0-9_-]{22})"[^>]*itemprop="identifier"',
+    ),
     ("channelId", r'"channelId"\s*:\s*"(UC[A-Za-z0-9_-]{22})"'),
 )
 
@@ -69,7 +92,12 @@ def parse_duration_seconds(duration: Optional[str]) -> Optional[int]:
     if not match:
         return None
     parts = {key: int(value or 0) for key, value in match.groupdict().items()}
-    return parts["days"] * 86400 + parts["hours"] * 3600 + parts["minutes"] * 60 + parts["seconds"]
+    return (
+        parts["days"] * 86400
+        + parts["hours"] * 3600
+        + parts["minutes"] * 60
+        + parts["seconds"]
+    )
 
 
 @dataclass(frozen=True)
@@ -79,6 +107,32 @@ class VideoDetails:
     duration: Optional[str]
     duration_seconds: Optional[int]
     live_broadcast: Optional[str]
+
+
+@dataclass(frozen=True)
+class UploadItem:
+    """One upload as returned by the Data API's ``playlistItems.list``."""
+
+    video_id: str
+    title: str
+    description: str
+    published_at: Optional[str]
+    channel_id: Optional[str]
+    channel_title: Optional[str]
+    thumbnail_url: Optional[str]
+
+
+def uploads_playlist_id(channel_id: str) -> str:
+    """
+    The uploads playlist id for a channel.
+
+    YouTube derives a channel's uploads playlist by replacing the leading
+    ``UC`` of the channel id with ``UU``. This is a stable convention, so
+    it saves a ``channels.list`` call before every ``playlistItems.list``.
+    """
+    if not CHANNEL_ID_RE.match(channel_id):
+        raise YouTubeApiError(f"cannot derive uploads playlist from {channel_id!r}")
+    return "UU" + channel_id[2:]
 
 
 class YouTubeClient:
@@ -114,9 +168,53 @@ class YouTubeClient:
             raise FeedFetchError(f"'{source_name}': feed fetch failed: {exc}") from exc
 
         if not response.ok:
-            raise FeedFetchError(f"'{source_name}': feed returned HTTP {response.status_code}")
+            raise FeedFetchError(
+                f"'{source_name}': feed returned HTTP {response.status_code}"
+            )
 
         return response.text
+
+    def list_uploads(
+        self, channel_id: str, max_results: int = DEFAULT_UPLOADS_PAGE_SIZE
+    ) -> list["UploadItem"]:
+        """
+        List a channel's most recent uploads via the Data API.
+
+        Reads the channel's uploads playlist (``playlistItems.list``), which
+        costs one quota unit and, unlike the public Atom feed, is not
+        throttled by IP. Returns items in the API's order (newest first).
+
+        Raises:
+            YouTubeApiError: If the Data API is unavailable or cannot answer.
+        """
+        if not self.api_key:
+            raise YouTubeApiError("Data API key is required to list uploads")
+
+        playlist_id = uploads_playlist_id(channel_id)
+        try:
+            response = self.http.get(
+                DATA_API_PLAYLIST_ITEMS_URL,
+                params={
+                    "part": "snippet,contentDetails",
+                    "playlistId": playlist_id,
+                    "maxResults": max_results,
+                    "key": self.api_key,
+                },
+            )
+        except HttpError as exc:
+            raise YouTubeApiError(f"playlistItems request failed: {exc}") from exc
+
+        if response.status_code == 404:
+            raise YouTubeApiError(f"uploads playlist {playlist_id} not found")
+        if not response.ok:
+            raise YouTubeApiError(f"playlistItems returned HTTP {response.status_code}")
+
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise YouTubeApiError("playlistItems response was not JSON") from exc
+
+        return [_upload_item(entry) for entry in (payload or {}).get("items") or []]
 
     # -- channel resolution -------------------------------------------------
 
@@ -181,10 +279,14 @@ class YouTubeClient:
         try:
             response = self.http.get(url, headers={"Accept-Language": "en-US,en;q=0.9"})
         except HttpError as exc:
-            raise ChannelResolutionError(f"{reference.key}: page fetch failed: {exc}") from exc
+            raise ChannelResolutionError(
+                f"{reference.key}: page fetch failed: {exc}"
+            ) from exc
 
         if response.status_code == 404:
-            raise ChannelResolutionError(f"{reference.key}: channel page not found (404)")
+            raise ChannelResolutionError(
+                f"{reference.key}: channel page not found (404)"
+            )
         if not response.ok:
             raise ChannelResolutionError(
                 f"{reference.key}: channel page returned HTTP {response.status_code}"
@@ -195,7 +297,9 @@ class YouTubeClient:
             if match:
                 return match.group(1)
 
-        raise ChannelResolutionError(f"{reference.key}: no channel id marker found on {url}")
+        raise ChannelResolutionError(
+            f"{reference.key}: no channel id marker found on {url}"
+        )
 
     @staticmethod
     def channel_page_url(reference: ChannelReference) -> str:
@@ -206,7 +310,9 @@ class YouTubeClient:
             return f"https://www.youtube.com/user/{reference.value}"
         if reference.kind == KIND_VANITY:
             return f"https://www.youtube.com/c/{reference.value}"
-        raise ChannelResolutionError(f"cannot resolve reference kind {reference.kind!r}")
+        raise ChannelResolutionError(
+            f"cannot resolve reference kind {reference.kind!r}"
+        )
 
     # -- video shape --------------------------------------------------------
 
@@ -222,7 +328,9 @@ class YouTubeClient:
         """
         url = SHORTS_URL_TEMPLATE.format(video_id=video_id)
         try:
-            response = self.http.head(url, allow_redirects=False, timeout=self.probe_timeout)
+            response = self.http.head(
+                url, allow_redirects=False, timeout=self.probe_timeout
+            )
         except HttpError as exc:
             raise YouTubeApiError(f"Shorts probe failed: {exc}") from exc
 
@@ -274,4 +382,45 @@ def _video_details(entry: Mapping[str, Any]) -> VideoDetails:
         duration=duration,
         duration_seconds=parse_duration_seconds(duration),
         live_broadcast=(entry.get("snippet") or {}).get("liveBroadcastContent"),
+    )
+
+
+def _best_thumbnail(thumbnails: Mapping[str, Any]) -> Optional[str]:
+    """Pick the highest-resolution thumbnail URL the API offered."""
+    if not isinstance(thumbnails, Mapping):
+        return None
+    # Ordered best-to-worst; the first present one wins.
+    for name in ("maxres", "standard", "high", "medium", "default"):
+        entry = thumbnails.get(name)
+        if isinstance(entry, Mapping) and entry.get("url"):
+            return entry["url"]
+    return None
+
+
+def _upload_item(entry: Mapping[str, Any]) -> UploadItem:
+    """Read one ``playlistItems`` entry into an ``UploadItem``."""
+    snippet = entry.get("snippet") or {}
+    content_details = entry.get("contentDetails") or {}
+
+    video_id = str(
+        content_details.get("videoId")
+        or (snippet.get("resourceId") or {}).get("videoId")
+        or ""
+    )
+
+    # playlistItems reports the channel that owns the video via
+    # videoOwnerChannelId; snippet.channelId is the playlist owner (the same
+    # channel for an uploads playlist, but we prefer the explicit field).
+    channel_id = snippet.get("videoOwnerChannelId") or snippet.get("channelId")
+    channel_title = snippet.get("videoOwnerChannelTitle") or snippet.get("channelTitle")
+
+    return UploadItem(
+        video_id=video_id,
+        title=str(snippet.get("title") or video_id),
+        description=str(snippet.get("description") or ""),
+        published_at=content_details.get("videoPublishedAt")
+        or snippet.get("publishedAt"),
+        channel_id=channel_id,
+        channel_title=channel_title,
+        thumbnail_url=_best_thumbnail(snippet.get("thumbnails") or {}),
     )

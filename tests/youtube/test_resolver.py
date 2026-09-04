@@ -11,15 +11,16 @@ from app.errors import ChannelResolutionError
 from app.models.youtube import KIND_PLAYLIST, ChannelReference
 from app.repositories.youtube.channel_cache import ChannelReferenceCache
 from app.services.youtube.ingestion import ChannelResolver
-from tests.youtube.fakes import (FakeClock, FakeHttpClient, FakeTable,
-                                 channel_page)
+from tests.youtube.fakes import FakeClock, FakeHttpClient, FakeTable, channel_page
 
 CHANNEL_ID = "UCAAAAAAAAAAAAAAAAAAAAAA"
 OTHER_CHANNEL_ID = "UCBBBBBBBBBBBBBBBBBBBBBB"
 
 
 def api_response(channel_id=CHANNEL_ID):
-    return HttpResponse(status_code=200, text=json.dumps({"items": [{"id": channel_id}]}))
+    return HttpResponse(
+        status_code=200, text=json.dumps({"items": [{"id": channel_id}]})
+    )
 
 
 def build(http=None, cache=None, api_key=None, clock=None):
@@ -48,20 +49,26 @@ def test_a_playlist_reference_is_not_resolvable():
 
 def test_a_handle_resolves_through_the_data_api_when_a_key_is_set():
     http = FakeHttpClient().add("GET", "googleapis.com", api_response())
-    resolution = build(http, api_key="key").resolve(parse_channel_reference("@damienjburks"))
+    resolution = build(http, api_key="key").resolve(
+        parse_channel_reference("@damienjburks")
+    )
     assert (resolution.channel_id, resolution.origin) == (CHANNEL_ID, "api")
     assert "forHandle" in str(http.calls[0]["params"])
 
 
 def test_a_legacy_user_resolves_through_the_data_api():
     http = FakeHttpClient().add("GET", "googleapis.com", api_response())
-    build(http, api_key="key").resolve(parse_channel_reference("https://youtube.com/user/somebody"))
+    build(http, api_key="key").resolve(
+        parse_channel_reference("https://youtube.com/user/somebody")
+    )
     assert http.calls[0]["params"]["forUsername"] == "somebody"
 
 
 def test_a_vanity_url_falls_back_to_the_page_because_the_api_cannot_look_it_up():
     http = FakeHttpClient().add(
-        "GET", "youtube.com/c/", HttpResponse(status_code=200, text=channel_page(CHANNEL_ID))
+        "GET",
+        "youtube.com/c/",
+        HttpResponse(status_code=200, text=channel_page(CHANNEL_ID)),
     )
     resolution = build(http, api_key="key").resolve(
         parse_channel_reference("https://youtube.com/c/SomeVanityName")
@@ -71,21 +78,27 @@ def test_a_vanity_url_falls_back_to_the_page_because_the_api_cannot_look_it_up()
 
 def test_an_empty_data_api_result_is_a_resolution_failure():
     http = FakeHttpClient().add(
-        "GET", "googleapis.com", HttpResponse(status_code=200, text=json.dumps({"items": []}))
+        "GET",
+        "googleapis.com",
+        HttpResponse(status_code=200, text=json.dumps({"items": []})),
     )
     with pytest.raises(ChannelResolutionError, match="no channel matched"):
         build(http, api_key="key").resolve(parse_channel_reference("@gone"))
 
 
 def test_a_data_api_error_status_is_a_resolution_failure():
-    http = FakeHttpClient().add("GET", "googleapis.com", HttpResponse(status_code=403, text="{}"))
+    http = FakeHttpClient().add(
+        "GET", "googleapis.com", HttpResponse(status_code=403, text="{}")
+    )
     with pytest.raises(ChannelResolutionError, match="HTTP 403"):
         build(http, api_key="key").resolve(parse_channel_reference("@quota"))
 
 
 def test_a_data_api_id_that_is_not_a_channel_id_is_rejected():
     http = FakeHttpClient().add(
-        "GET", "googleapis.com", HttpResponse(status_code=200, text=json.dumps({"items": [{"id": "UC1"}]}))
+        "GET",
+        "googleapis.com",
+        HttpResponse(status_code=200, text=json.dumps({"items": [{"id": "UC1"}]})),
     )
     with pytest.raises(ChannelResolutionError, match="unusable id"):
         build(http, api_key="key").resolve(parse_channel_reference("@weird"))
@@ -94,7 +107,9 @@ def test_a_data_api_id_that_is_not_a_channel_id_is_rejected():
 # -- the public page --------------------------------------------------------
 
 
-@pytest.mark.parametrize("marker", ["externalId", "canonical", "identifier", "channelId"])
+@pytest.mark.parametrize(
+    "marker", ["externalId", "canonical", "identifier", "channelId"]
+)
 def test_any_one_of_the_four_page_markers_is_enough(marker):
     # One markup change must not break resolution.
     http = FakeHttpClient().add(
@@ -102,19 +117,26 @@ def test_any_one_of_the_four_page_markers_is_enough(marker):
         "youtube.com/@",
         HttpResponse(status_code=200, text=channel_page(CHANNEL_ID, marker=marker)),
     )
-    assert build(http).resolve(parse_channel_reference("@damienjburks")).channel_id == CHANNEL_ID
+    assert (
+        build(http).resolve(parse_channel_reference("@damienjburks")).channel_id
+        == CHANNEL_ID
+    )
 
 
 def test_a_page_with_no_marker_is_a_resolution_failure():
     http = FakeHttpClient().add(
-        "GET", "youtube.com/@", HttpResponse(status_code=200, text="<html>nothing here</html>")
+        "GET",
+        "youtube.com/@",
+        HttpResponse(status_code=200, text="<html>nothing here</html>"),
     )
     with pytest.raises(ChannelResolutionError, match="no channel id marker"):
         build(http).resolve(parse_channel_reference("@damienjburks"))
 
 
 def test_a_renamed_handle_is_a_resolution_failure_not_a_crash():
-    http = FakeHttpClient().add("GET", "youtube.com/@", HttpResponse(status_code=404, text=""))
+    http = FakeHttpClient().add(
+        "GET", "youtube.com/@", HttpResponse(status_code=404, text="")
+    )
     with pytest.raises(ChannelResolutionError, match="404"):
         build(http).resolve(parse_channel_reference("@renamed"))
 
@@ -130,7 +152,9 @@ def test_an_unreachable_youtube_is_a_resolution_failure():
 
 def test_the_memo_prevents_a_second_lookup():
     http = FakeHttpClient().add(
-        "GET", "youtube.com/@", HttpResponse(status_code=200, text=channel_page(CHANNEL_ID))
+        "GET",
+        "youtube.com/@",
+        HttpResponse(status_code=200, text=channel_page(CHANNEL_ID)),
     )
     resolver = build(http)
     reference = parse_channel_reference("@damienjburks")
@@ -165,7 +189,9 @@ def test_a_dynamodb_cache_hit_survives_a_restart():
     clock = FakeClock()
     cache = ChannelReferenceCache(table, clock=clock)
     http = FakeHttpClient().add(
-        "GET", "youtube.com/@", HttpResponse(status_code=200, text=channel_page(CHANNEL_ID))
+        "GET",
+        "youtube.com/@",
+        HttpResponse(status_code=200, text=channel_page(CHANNEL_ID)),
     )
     reference = parse_channel_reference("@damienjburks")
 
@@ -203,7 +229,11 @@ def test_the_cache_key_includes_the_reference_kind():
     cache = ChannelReferenceCache(table, clock=clock)
     http = (
         FakeHttpClient()
-        .add("GET", "youtube.com/user/", HttpResponse(status_code=200, text=channel_page(CHANNEL_ID)))
+        .add(
+            "GET",
+            "youtube.com/user/",
+            HttpResponse(status_code=200, text=channel_page(CHANNEL_ID)),
+        )
         .add(
             "GET",
             "youtube.com/c/",
@@ -217,7 +247,10 @@ def test_the_cache_key_includes_the_reference_kind():
 
     assert user.channel_id == CHANNEL_ID
     assert vanity.channel_id == OTHER_CHANNEL_ID
-    assert set(table.items) == {"youtube-channel#user:foo", "youtube-channel#vanity:foo"}
+    assert set(table.items) == {
+        "youtube-channel#user:foo",
+        "youtube-channel#vanity:foo",
+    }
 
 
 def test_a_corrupt_cache_entry_is_ignored_and_re_resolved():
@@ -227,7 +260,12 @@ def test_a_corrupt_cache_entry_is_ignored_and_re_resolved():
         "channel_id": "not-a-channel-id",
     }
     http = FakeHttpClient().add(
-        "GET", "youtube.com/@", HttpResponse(status_code=200, text=channel_page(CHANNEL_ID))
+        "GET",
+        "youtube.com/@",
+        HttpResponse(status_code=200, text=channel_page(CHANNEL_ID)),
     )
     resolver = build(http, cache=ChannelReferenceCache(table))
-    assert resolver.resolve(parse_channel_reference("@damienjburks")).channel_id == CHANNEL_ID
+    assert (
+        resolver.resolve(parse_channel_reference("@damienjburks")).channel_id
+        == CHANNEL_ID
+    )

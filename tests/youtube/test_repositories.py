@@ -5,15 +5,19 @@ from datetime import datetime, timezone
 import pytest
 
 from app.errors import RepositoryError, RosterError, RosterWriteConflict
-from app.models.youtube import (SKIP_REASON_SHORT, STATUS_PENDING,
-                                STATUS_POSTED, STATUS_POSTING, STATUS_SKIPPED,
-                                DeliveryReceipt)
+from app.models.youtube import (
+    SKIP_REASON_SHORT,
+    STATUS_PENDING,
+    STATUS_POSTED,
+    STATUS_POSTING,
+    STATUS_SKIPPED,
+    DeliveryReceipt,
+)
 from app.repositories.youtube.channel_cache import ChannelReferenceCache
 from app.repositories.youtube.processing import ProcessingRepository
 from app.repositories.youtube.roster import RosterRepository
 from app.utils.clock import to_iso
-from tests.youtube.fakes import (FakeClock, FakeTable, make_item,
-                                 throttling_error)
+from tests.youtube.fakes import FakeClock, FakeTable, make_item, throttling_error
 
 CHANNEL = "123456789012345678"
 
@@ -74,9 +78,12 @@ def test_the_second_claim_in_an_overlapping_poll_loses(repo):
 
 
 @pytest.mark.parametrize(
-    "status, settled", [(STATUS_POSTED, True), (STATUS_SKIPPED, True), (STATUS_POSTING, True)]
+    "status, settled",
+    [(STATUS_POSTED, True), (STATUS_SKIPPED, True), (STATUS_POSTING, True)],
 )
-def test_a_finished_record_blocks_the_claim_and_counts_as_settled(repo, table, status, settled):
+def test_a_finished_record_blocks_the_claim_and_counts_as_settled(
+    repo, table, status, settled
+):
     item = make_item("abc123")
     repo.claim(item, CHANNEL)
     table.items["youtube#abc123"]["status"] = status

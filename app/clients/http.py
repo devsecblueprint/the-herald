@@ -90,18 +90,30 @@ class HttpClient(Protocol):
 class RequestsHttpClient:
     """``HttpClient`` backed by ``requests``, with a shared session."""
 
-    def __init__(self, session: Optional[requests.Session] = None, timeout: float = DEFAULT_TIMEOUT):
+    def __init__(
+        self,
+        session: Optional[requests.Session] = None,
+        timeout: float = DEFAULT_TIMEOUT,
+    ):
         self.session = session or requests.Session()
         self.timeout = timeout
 
     def get(self, url, *, params=None, headers=None, timeout=None) -> HttpResponse:
         """Issue a GET request."""
-        return self._request("GET", url, params=params, headers=headers, timeout=timeout)
+        return self._request(
+            "GET", url, params=params, headers=headers, timeout=timeout
+        )
 
-    def head(self, url, *, headers=None, allow_redirects=False, timeout=None) -> HttpResponse:
+    def head(
+        self, url, *, headers=None, allow_redirects=False, timeout=None
+    ) -> HttpResponse:
         """Issue a HEAD request, not following redirects by default."""
         return self._request(
-            "HEAD", url, headers=headers, timeout=timeout, allow_redirects=allow_redirects
+            "HEAD",
+            url,
+            headers=headers,
+            timeout=timeout,
+            allow_redirects=allow_redirects,
         )
 
     def post(self, url, *, json=None, headers=None, timeout=None) -> HttpResponse:
@@ -113,7 +125,10 @@ class RequestsHttpClient:
         timeout = kwargs.pop("timeout", None) or self.timeout
         try:
             response = self.session.request(method, url, timeout=timeout, **kwargs)
-        except (requests.exceptions.ReadTimeout, requests.exceptions.ChunkedEncodingError) as exc:
+        except (
+            requests.exceptions.ReadTimeout,
+            requests.exceptions.ChunkedEncodingError,
+        ) as exc:
             # The request was on the wire; we simply never saw the answer.
             raise HttpResponseIncomplete(f"{method} {url}: {exc}") from exc
         except requests.exceptions.RequestException as exc:
@@ -122,7 +137,9 @@ class RequestsHttpClient:
         try:
             text = response.text
         except Exception as exc:  # pragma: no cover - defensive
-            raise HttpResponseIncomplete(f"{method} {url}: unreadable body: {exc}") from exc
+            raise HttpResponseIncomplete(
+                f"{method} {url}: unreadable body: {exc}"
+            ) from exc
 
         return HttpResponse(
             status_code=response.status_code,

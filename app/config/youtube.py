@@ -16,9 +16,15 @@ from urllib.parse import urlparse
 import yaml
 
 from app.errors import ConfigurationError
-from app.models.youtube import (CHANNEL_ID_RE, KIND_HANDLE, KIND_ID,
-                                KIND_PLAYLIST, KIND_USER, KIND_VANITY,
-                                ChannelReference)
+from app.models.youtube import (
+    CHANNEL_ID_RE,
+    KIND_HANDLE,
+    KIND_ID,
+    KIND_PLAYLIST,
+    KIND_USER,
+    KIND_VANITY,
+    ChannelReference,
+)
 
 DEFAULT_CONFIG_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -33,7 +39,15 @@ LEGACY_NAME_RE = re.compile(r"^[A-Za-z0-9._%-]{1,100}$")
 KNOWN_RELATIONSHIPS = frozenset({"COMMUNITY_PARTNER", "DSB", "MEMBER", "SPONSOR"})
 
 SOURCE_FIELDS = frozenset(
-    {"name", "relationship", "channel", "channel_id", "categories", "playlist_id", "attribution"}
+    {
+        "name",
+        "relationship",
+        "channel",
+        "channel_id",
+        "categories",
+        "playlist_id",
+        "attribution",
+    }
 )
 SECTION_FIELDS = frozenset(
     {
@@ -66,7 +80,9 @@ def parse_channel_reference(raw: Any) -> ChannelReference:
 
     value = raw.strip()
 
-    if "youtube.com" in value.lower() or value.lower().startswith(("http://", "https://")):
+    if "youtube.com" in value.lower() or value.lower().startswith(
+        ("http://", "https://")
+    ):
         return _parse_channel_url(value)
 
     if value.startswith("@"):
@@ -232,9 +248,15 @@ def load_config(
         or "content-corner"
     )
 
-    message_style = str(
-        env.get("HERALD_YOUTUBE_MESSAGE_STYLE") or section.get("message_style") or "embed"
-    ).strip().lower()
+    message_style = (
+        str(
+            env.get("HERALD_YOUTUBE_MESSAGE_STYLE")
+            or section.get("message_style")
+            or "embed"
+        )
+        .strip()
+        .lower()
+    )
     if message_style not in MESSAGE_STYLES:
         raise ConfigurationError(
             f"'message_style' must be one of {sorted(MESSAGE_STYLES)}, got {message_style!r}"
@@ -273,9 +295,13 @@ def _read_document(source, env) -> Mapping[str, Any]:
         with open(path, "r", encoding="utf-8") as handle:
             document = yaml.safe_load(handle)
     except FileNotFoundError as exc:
-        raise ConfigurationError(f"YouTube configuration file not found: {path}") from exc
+        raise ConfigurationError(
+            f"YouTube configuration file not found: {path}"
+        ) from exc
     except yaml.YAMLError as exc:
-        raise ConfigurationError(f"Error parsing YouTube configuration {path}: {exc}") from exc
+        raise ConfigurationError(
+            f"Error parsing YouTube configuration {path}: {exc}"
+        ) from exc
 
     if document is None:
         return {}
@@ -340,7 +366,9 @@ def _parse_source(index: int, entry: Any) -> YouTubeSource:
         raise ConfigurationError(f"'{name}' is missing 'relationship'")
 
     attribution = entry.get("attribution")
-    if attribution is not None and (not isinstance(attribution, str) or not attribution.strip()):
+    if attribution is not None and (
+        not isinstance(attribution, str) or not attribution.strip()
+    ):
         raise ConfigurationError(f"'{name}': 'attribution' must be a non-empty string")
 
     return YouTubeSource(
@@ -368,7 +396,9 @@ def _parse_source_reference(name: str, entry: Mapping[str, Any]) -> ChannelRefer
         # channel reference is still validated so a typo cannot hide behind it.
         reference = parse_channel_reference(raw_channel)
         if entry.get("playlist_id") is not None:
-            reference = ChannelReference(KIND_PLAYLIST, parse_playlist_id(entry["playlist_id"]))
+            reference = ChannelReference(
+                KIND_PLAYLIST, parse_playlist_id(entry["playlist_id"])
+            )
     except ConfigurationError as exc:
         raise ConfigurationError(f"'{name}': {exc}") from exc
 
@@ -429,7 +459,9 @@ def _coerce_bool(label: str, raw: Any) -> bool:
     raise ConfigurationError(f"{label} must be a boolean, got {raw!r}")
 
 
-def _int_setting(env: Mapping[str, str], variable: str, fallback: Any, label: str) -> int:
+def _int_setting(
+    env: Mapping[str, str], variable: str, fallback: Any, label: str
+) -> int:
     """Read an integer from the environment, falling back to the YAML value."""
     raw = env.get(variable, fallback)
     try:
@@ -438,7 +470,9 @@ def _int_setting(env: Mapping[str, str], variable: str, fallback: Any, label: st
         raise ConfigurationError(f"'{label}' must be an integer, got {raw!r}") from exc
 
 
-def _float_setting(env: Mapping[str, str], variable: str, fallback: Any, label: str) -> float:
+def _float_setting(
+    env: Mapping[str, str], variable: str, fallback: Any, label: str
+) -> float:
     """Read a float from the environment, falling back to the YAML value."""
     raw = env.get(variable, fallback)
     try:

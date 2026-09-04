@@ -60,7 +60,9 @@ class YouTubePollingService:
         """
         # Deliberately not a `with`: a poll already in flight is reported,
         # not waited for.
-        if not self._lock.acquire(blocking=False):  # pylint: disable=consider-using-with
+        if not self._lock.acquire(
+            blocking=False
+        ):  # pylint: disable=consider-using-with
             self.events.event("youtube.poll.already_running")
             return PollResult(
                 skipped=True,
@@ -120,7 +122,9 @@ class YouTubePollingService:
             result.disabled = True
             return self._finish(result)
 
-        self.events.event("youtube.poll.started", sources_configured=len(self.config.sources))
+        self.events.event(
+            "youtube.poll.started", sources_configured=len(self.config.sources)
+        )
 
         try:
             roster = self.roster.load()
@@ -142,7 +146,9 @@ class YouTubePollingService:
 
         watermarks: Dict[str, datetime] = {}
         for source in self.config.sources:
-            self._poll_source(source, roster.watermarks.get(source.key), watermarks, result)
+            self._poll_source(
+                source, roster.watermarks.get(source.key), watermarks, result
+            )
 
         self._save_roster(watermarks, roster.revision, result)
         return self._finish(result)
@@ -222,7 +228,9 @@ class YouTubePollingService:
         else:
             watermarks[source.key] = watermark
 
-    def _publish(self, item: ContentItem, source: YouTubeSource, result: PollResult) -> bool:
+    def _publish(
+        self, item: ContentItem, source: YouTubeSource, result: PollResult
+    ) -> bool:
         """
         Publish one video and fold its outcome into the poll summary.
 
@@ -269,7 +277,9 @@ class YouTubePollingService:
 
     # -- helpers -----------------------------------------------------------
 
-    def _save_roster(self, watermarks, expected_revision: int, result: PollResult) -> None:
+    def _save_roster(
+        self, watermarks, expected_revision: int, result: PollResult
+    ) -> None:
         """Rewrite the roster from the configuration, guarded on revision."""
         try:
             self.roster.save(watermarks, expected_revision)

@@ -17,13 +17,17 @@ from app.repositories.youtube.channel_cache import ChannelReferenceCache
 from app.repositories.youtube.processing import ProcessingRepository
 from app.repositories.youtube.roster import RosterRepository
 from app.services.youtube.classification import build_shorts_detector
-from app.services.youtube.ingestion import (ChannelResolver,
-                                            YouTubeIngestionService)
+from app.services.youtube.ingestion import ChannelResolver, YouTubeIngestionService
 from app.services.youtube.polling import YouTubePollingService
 from app.services.youtube.publishing import YouTubePublishingService
 from app.utils.clock import to_iso
-from tests.youtube.fakes import (FakeClock, FakeHttpClient, FakeTable,
-                                 channel_page, feed_xml)
+from tests.youtube.fakes import (
+    FakeClock,
+    FakeHttpClient,
+    FakeTable,
+    channel_page,
+    feed_xml,
+)
 from tests.youtube.harness import CHANNEL_ID, build_config
 
 YT_CHANNEL = "UCAAAAAAAAAAAAAAAAAAAAAA"
@@ -65,7 +69,9 @@ def test_a_partner_is_onboarded_then_their_next_upload_is_announced():
     http.add(
         "GET",
         "feeds/videos.xml",
-        HttpResponse(200, text=feed_xml([{"video_id": "old", "published": at(20)}], YT_CHANNEL)),
+        HttpResponse(
+            200, text=feed_xml([{"video_id": "old", "published": at(20)}], YT_CHANNEL)
+        ),
         HttpResponse(
             200,
             text=feed_xml(
@@ -83,7 +89,11 @@ def test_a_partner_is_onboarded_then_their_next_upload_is_announced():
             ),
         ),
     )
-    http.add("HEAD", "/shorts/fresh", HttpResponse(303, headers={"Location": "/watch?v=fresh"}))
+    http.add(
+        "HEAD",
+        "/shorts/fresh",
+        HttpResponse(303, headers={"Location": "/watch?v=fresh"}),
+    )
     http.add("HEAD", "/shorts/tiny", HttpResponse(200))
     http.add("POST", "discord.com", HttpResponse(200, text=json.dumps({"id": "555"})))
 
@@ -152,7 +162,7 @@ def test_the_discord_payload_is_what_lands_in_the_channel():
     payload = post["json"]
 
     assert post["url"] == f"https://discord.com/api/v10/channels/{CHANNEL_ID}/messages"
-    assert payload["content"] == "\U0001F4FA New from **Damien Burks** on YouTube"
+    assert payload["content"] == "\U0001f4fa New from **Damien Burks** on YouTube"
     assert payload["allowed_mentions"] == {"parse": []}
     embed = payload["embeds"][0]
     assert embed["title"] == "Threat modelling for platform teams"

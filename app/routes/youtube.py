@@ -38,7 +38,9 @@ class YouTubeTriggerController:
         return 200, self.polling.health()
 
 
-def create_fastapi_router(controller: YouTubeTriggerController, prefix: str = "") -> APIRouter:
+def create_fastapi_router(
+    controller: YouTubeTriggerController, prefix: str = ""
+) -> APIRouter:
     """Build a FastAPI router exposing the trigger and health endpoints."""
     router = APIRouter(prefix=prefix)
 
