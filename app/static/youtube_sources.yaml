@@ -10,20 +10,26 @@
 # a fresh onboarding, and nothing published in between is announced.
 # ---------------------------------------------------------------------------
 
+# Operational settings (enabled, poll_interval_minutes, exclude_shorts,
+# discord_channel_id and discord_notify_role_id) are supplied by Terraform
+# through environment variables, which take precedence over this file. They
+# are intentionally not set here so there is a single source of truth. This
+# file configures only the partner roster and the announcement channel name.
 youtube:
-  enabled: true
-  poll_interval_minutes: 1
-  exclude_shorts: true
-
-  # Every announcement goes here. The numeric id is supplied by the
-  # HERALD_DISCORD_CHANNEL_ID environment variable so it can differ per
-  # environment; set `discord_channel_id` here instead if you prefer.
+  # Every announcement goes to this channel. Its numeric id comes from the
+  # HERALD_DISCORD_CHANNEL_ID environment variable, set by Terraform.
   discord_channel_name: content-corner
 
   youtube_sources:
-    - name: TechTual Chatter
+    - name: TechTual Talk
       relationship: COMMUNITY_PARTNER
       channel: "@TechTualChatter"
+      categories:
+        - cyber-security
+        - tech-news
+    - name: TechTual Talk Podcast
+      relationship: COMMUNITY_PARTNER
+      channel: "@TheTechTualTalkpod"
       categories:
         - cyber-security
         - tech-news

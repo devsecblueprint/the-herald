@@ -14,7 +14,7 @@ their long-form videos is announced.
 
 import threading
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from app.config.youtube import YouTubeConfig, YouTubeSource
 from app.errors import RosterError, RosterWriteConflict, YouTubeError
@@ -74,6 +74,86 @@ class YouTubePollingService:
             return self._run()
         finally:
             self._lock.release()
+
+    def reconcile(self) -> Dict[str, Any]:
+        """
+        Reconcile the roster against the configuration.
+
+        Run once at startup. Every configured source that has no roster
+        record is onboarded with a watermark of now, so it announces only
+        uploads published after this point and never its back catalogue.
+        Every roster record whose source is no longer configured is dropped.
+
+        Onboarding here is deliberately decoupled from fetching: a source is
+        recorded the moment it appears in the configuration, so a handle that
+        is briefly failing to resolve is not left permanently un-onboarded
+        and therefore never able to publish.
+
+        Returns:
+            A summary of what changed: the keys onboarded and offboarded.
+        """
+        with self._lock:
+            now = self.clock()
+            try:
+                roster = self.roster.load()
+            except RosterError as exc:
+                self.events.error("youtube.reconcile.load_failed", error=str(exc))
+                return {"onboarded": [], "offboarded": [], "error": str(exc)}
+
+            configured_keys = set(self.config.source_keys)
+            existing_keys = set(roster.watermarks)
+
+            onboarded = sorted(configured_keys - existing_keys)
+            offboarded = sorted(existing_keys - configured_keys)
+
+            if not onboarded and not offboarded:
+                self.events.event(
+                    "youtube.reconcile.noop", sources_configured=len(configured_keys)
+                )
+                return {"onboarded": [], "offboarded": []}
+
+            # Keep every still-configured watermark; add now for new sources.
+            watermarks: Dict[str, datetime] = {
+                key: value
+                for key, value in roster.watermarks.items()
+                if key in configured_keys
+            }
+            for key in onboarded:
+                watermarks[key] = now
+
+            self.events.event(
+                "youtube.reconcile.saving",
+                onboarded=onboarded,
+                offboarded=offboarded,
+                expected_revision=roster.revision,
+                total_sources=len(watermarks),
+            )
+
+            # Unlike the poll, reconcile must not swallow a failed write: if
+            # the roster does not persist, new sources are never onboarded and
+            # nothing they publish is ever announced. Surface it loudly.
+            try:
+                new_revision = self.roster.save(watermarks, roster.revision)
+            except RosterError as exc:
+                self.events.error(
+                    "youtube.reconcile.save_failed",
+                    error=str(exc),
+                    onboarded=onboarded,
+                    offboarded=offboarded,
+                )
+                return {
+                    "onboarded": [],
+                    "offboarded": [],
+                    "error": str(exc),
+                }
+
+            self.events.event(
+                "youtube.reconcile.saved",
+                onboarded=onboarded,
+                offboarded=offboarded,
+                revision=new_revision,
+            )
+            return {"onboarded": onboarded, "offboarded": offboarded}
 
     @property
     def is_running(self) -> bool:

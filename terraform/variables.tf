@@ -115,3 +115,9 @@ variable "content_corner_channel_id" {
   type        = string
   default     = "1320592138689319073"
 }
+
+variable "notify_role_id" {
+  description = "Numeric Discord role id (@Notifs) to ping on every announcement. Empty pings no one."
+  type        = string
+  default     = "1338013529843826728"
+}

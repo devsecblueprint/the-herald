@@ -181,6 +181,19 @@ def configure_youtube():
         logger.info("YouTube ingestion is configured but disabled; no job registered")
         return
 
+    # Reconcile the roster against the configuration at startup: onboard any
+    # newly configured source (watermark = now) and offboard any that were
+    # removed. This runs before the first poll so new partners are never
+    # left stuck without a watermark.
+    try:
+        summary = polling.reconcile()
+        logger.info(
+            f"YouTube roster reconciled: onboarded={summary.get('onboarded')}, "
+            f"offboarded={summary.get('offboarded')}"
+        )
+    except Exception as e:  # pragma: no cover - startup must not crash on this
+        logger.error(f"YouTube roster reconciliation failed: {e}")
+
     register_youtube_job(scheduler, polling)
     logger.info(
         f"YouTube ingestion configured: {len(polling.config.sources)} source(s), "

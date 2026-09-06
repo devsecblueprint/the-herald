@@ -162,9 +162,10 @@ def test_the_discord_payload_is_what_lands_in_the_channel():
     payload = post["json"]
 
     assert post["url"] == f"https://discord.com/api/v10/channels/{CHANNEL_ID}/messages"
-    assert payload["content"] == "\U0001f4fa New from **Damien Burks** on YouTube"
+    assert payload["content"] == (
+        "New video from **Damien Burks**.\n"
+        "Check it out on YouTube: https://www.youtube.com/watch?v=fresh"
+    )
     assert payload["allowed_mentions"] == {"parse": []}
-    embed = payload["embeds"][0]
-    assert embed["title"] == "Threat modelling for platform teams"
-    assert embed["url"] == "https://www.youtube.com/watch?v=fresh"
-    assert embed["footer"]["text"] == "Damien Burks • Community Partner • YouTube"
+    # No custom embed: Discord renders YouTube's own player card from the URL.
+    assert "embeds" not in payload

@@ -129,6 +129,10 @@ resource "aws_ecs_task_definition" "the_herald" {
           value = var.content_corner_channel_id
         },
         {
+          name  = "HERALD_DISCORD_NOTIFY_ROLE_ID"
+          value = var.notify_role_id
+        },
+        {
           name  = "HERALD_DEDUP_TABLE_NAME"
           value = aws_dynamodb_table.herald_dedup.name
         }

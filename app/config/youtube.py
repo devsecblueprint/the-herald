@@ -56,6 +56,7 @@ SECTION_FIELDS = frozenset(
         "exclude_shorts",
         "discord_channel_name",
         "discord_channel_id",
+        "discord_notify_role_id",
         "youtube_sources",
         "message_style",
         "post_delay_seconds",
@@ -192,6 +193,7 @@ class YouTubeConfig:
     sources: List[YouTubeSource]
     message_style: str = "embed"
     post_delay_seconds: float = 0.0
+    notify_role_id: str = ""
 
     @property
     def source_keys(self) -> List[str]:
@@ -247,6 +249,7 @@ def load_config(
         or section.get("discord_channel_name")
         or "content-corner"
     )
+    notify_role_id = _notify_role_id_setting(env, section)
 
     message_style = (
         str(
@@ -282,6 +285,7 @@ def load_config(
         sources=sources,
         message_style=message_style,
         post_delay_seconds=post_delay,
+        notify_role_id=notify_role_id,
     )
 
 
@@ -434,6 +438,27 @@ def _channel_id_setting(
     value = str(raw).strip()
     if not value.isdigit():
         raise ConfigurationError(f"'discord_channel_id' must be numeric, got {raw!r}")
+    return value
+
+
+def _notify_role_id_setting(env: Mapping[str, str], section: Mapping[str, Any]) -> str:
+    """
+    Resolve the optional role to ping on every announcement.
+
+    Optional: when unset, announcements ping no one, exactly as before. When
+    set it must be a numeric Discord role id, since that is what the mention
+    ``<@&id>`` and ``allowed_mentions.roles`` both require.
+    """
+    raw = env.get("HERALD_DISCORD_NOTIFY_ROLE_ID") or section.get(
+        "discord_notify_role_id"
+    )
+    if raw is None or str(raw).strip() == "":
+        return ""
+    value = str(raw).strip()
+    if not value.isdigit():
+        raise ConfigurationError(
+            f"'discord_notify_role_id' must be numeric, got {raw!r}"
+        )
     return value
 
 

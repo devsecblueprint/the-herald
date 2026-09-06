@@ -726,3 +726,108 @@ def test_health_reports_the_configuration_and_the_last_run():
     assert health["sources_configured"] == 1
     assert health["sources"][0]["source_key"] == DAMIEN
     assert health["last_run"]["sources_onboarded"] == 1
+
+
+# -- reconciliation (startup) -----------------------------------------------
+
+
+def test_reconcile_onboards_a_new_source_with_a_now_watermark():
+    herald = build_harness(config=build_config(TWO_SOURCES), now=at(30))
+
+    summary = herald.polling.reconcile()
+
+    assert summary == {"onboarded": [DAMIEN, DSB], "offboarded": []}
+    assert herald.watermarks() == {DAMIEN: to_iso(at(30)), DSB: to_iso(at(30))}
+
+
+def test_reconcile_does_not_require_a_successful_fetch_to_onboard():
+    # No feed registered and the fetch fails, yet reconcile still records a
+    # starting point so the source is never left stuck without a watermark.
+    herald = build_harness(now=at(30))
+    herald.fail(DAMIEN, FeedFetchError("handle did not resolve"))
+
+    summary = herald.polling.reconcile()
+
+    assert summary["onboarded"] == [DAMIEN]
+    assert herald.watermarks() == {DAMIEN: to_iso(at(30))}
+
+
+def test_reconcile_offboards_a_source_removed_from_the_configuration():
+    # Onboard two, then redeploy with only one still configured.
+    shared_table = build_harness(config=build_config(TWO_SOURCES), now=at(30))
+    shared_table.polling.reconcile()
+
+    reduced = build_harness(
+        config=build_config(),  # Damien only
+        table=shared_table.table,
+        clock=shared_table.clock,
+    )
+    summary = reduced.polling.reconcile()
+
+    assert summary == {"onboarded": [], "offboarded": [DSB]}
+    assert reduced.watermarks() == {DAMIEN: to_iso(at(30))}
+
+
+def test_reconcile_preserves_an_existing_watermark():
+    herald = onboarded()  # DAMIEN onboarded at at(30), watermark at(20)
+    before = herald.watermarks()
+
+    herald.clock.advance(days=5)
+    summary = herald.polling.reconcile()
+
+    assert summary == {"onboarded": [], "offboarded": []}
+    # An already-onboarded source keeps its watermark; reconcile does not
+    # move it forward to "now".
+    assert herald.watermarks() == before
+
+
+def test_reconcile_writes_against_an_existing_roster_revision():
+    # Regression: adding sources to a roster that already exists takes the
+    # revision-guarded update path, which must not declare an unused #pk name.
+    herald = onboarded()  # roster exists at revision 1 (DAMIEN only)
+
+    grown = build_harness(
+        config=build_config(TWO_SOURCES),
+        table=herald.table,
+        clock=herald.clock,
+    )
+    grown.clock.advance(days=1)
+
+    summary = grown.polling.reconcile()
+
+    assert summary == {"onboarded": [DSB], "offboarded": []}
+    assert grown.revision() == 2
+    assert set(grown.watermarks()) == {DAMIEN, DSB}
+
+
+def test_reconcile_only_adds_the_missing_source_on_a_partial_roster():
+    # DAMIEN already onboarded; DSB is newly added to the configuration.
+    herald = onboarded()
+    before = herald.watermarks()
+
+    grown = build_harness(
+        config=build_config(TWO_SOURCES),
+        table=herald.table,
+        clock=herald.clock,
+    )
+    grown.clock.advance(days=1)
+    summary = grown.polling.reconcile()
+
+    assert summary == {"onboarded": [DSB], "offboarded": []}
+    assert grown.watermarks() == {
+        DAMIEN: before[DAMIEN],
+        DSB: to_iso(grown.clock.now),
+    }
+
+
+def test_a_reconciled_new_source_then_announces_only_new_uploads():
+    herald = build_harness(now=at(30))
+    herald.polling.reconcile()  # onboard DAMIEN at at(30)
+
+    herald.clock.advance(days=1)
+    herald.publish(DAMIEN, [("old", at(20)), ("fresh", at(31))])
+    result = herald.run()
+
+    # Back catalogue (at(20)) stays put; only the post-onboarding upload posts.
+    assert announced_ids(result) == ["fresh"]
+    assert herald.watermarks() == {DAMIEN: to_iso(at(31))}

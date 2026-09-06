@@ -96,6 +96,7 @@ def build_polling_service(
         channel_id=resolved_config.discord_channel_id,
         message_style=resolved_config.message_style,
         post_delay_seconds=resolved_config.post_delay_seconds,
+        notify_role_id=resolved_config.notify_role_id,
         event_logger=events,
     )
 

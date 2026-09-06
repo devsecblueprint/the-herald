@@ -49,6 +49,33 @@ def throttling_error(operation: str = "PutItem") -> ClientError:
     )
 
 
+def _reject_unused_names(expression, names) -> None:
+    """
+    Mimic DynamoDB rejecting an unused ExpressionAttributeNames alias.
+
+    Real DynamoDB raises ValidationException when a declared ``#alias`` never
+    appears in any expression; the in-memory table used to accept it, which
+    hid a production-only bug. This keeps the fake honest.
+    """
+    if not names:
+        return
+    haystack = expression or ""
+    unused = [alias for alias in names if alias not in haystack]
+    if unused:
+        raise ClientError(
+            {
+                "Error": {
+                    "Code": "ValidationException",
+                    "Message": (
+                        "Value provided in ExpressionAttributeNames unused in "
+                        f"expressions: keys: {{{', '.join(unused)}}}"
+                    ),
+                }
+            },
+            "PutItem",
+        )
+
+
 def to_dynamo(value):
     """Coerce numbers to Decimal, the way DynamoDB stores and returns them."""
     if isinstance(value, bool):
@@ -102,6 +129,7 @@ class FakeTable:
     ):
         """Write an item, honouring any condition expression."""
         self._maybe_fail("put_item")
+        _reject_unused_names(ConditionExpression, ExpressionAttributeNames)
         key = Item[self.key_attribute]
         existing = self.items.get(key)
 

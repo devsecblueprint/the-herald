@@ -104,16 +104,17 @@ class RosterRepository:
             "revision": revision,
         }
 
+        # Declare only the names each condition actually references: DynamoDB
+        # rejects a PutItem whose ExpressionAttributeNames contains an unused
+        # alias. The create guard uses #pk; the update guard uses #rev.
         if expected_revision == 0:
             condition = "attribute_not_exists(#pk)"
+            names = {"#pk": self.key_attribute}
             values = None
         else:
             condition = "#rev = :expected"
+            names = {"#rev": "revision"}
             values = {":expected": expected_revision}
-
-        names = {"#pk": self.key_attribute}
-        if expected_revision != 0:
-            names["#rev"] = "revision"
 
         kwargs = {
             "Item": item,

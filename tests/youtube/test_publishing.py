@@ -1,7 +1,5 @@
 """The message that lands in Discord, and the per-video workflow."""
 
-import pytest
-
 from app.errors import (
     AmbiguousDeliveryError,
     ClassificationError,
@@ -17,13 +15,9 @@ from app.models.youtube import (
 )
 from app.repositories.youtube.processing import ProcessingRepository
 from app.services.youtube.publishing import (
-    DEFAULT_COLOUR,
-    RELATIONSHIP_COLOURS,
     YouTubePublishingService,
     build_message,
 )
-from app.utils.clock import to_iso
-from app.utils.text import truncate
 from tests.youtube.fakes import (
     FakeClock,
     FakeTable,
@@ -40,80 +34,66 @@ CHANNEL = "123456789012345678"
 # -- the message ------------------------------------------------------------
 
 
-def test_the_content_line_names_the_partner():
-    payload = build_message(make_item())
-    assert payload["content"] == "\U0001f4fa New from **Damien Burks** on YouTube"
+def test_the_message_names_the_partner_and_links_the_video():
+    payload = build_message(make_item("abc123"))
+    assert payload["content"] == (
+        "New video from **Damien Burks**.\n"
+        "Check it out on YouTube: https://www.youtube.com/watch?v=abc123"
+    )
+
+
+def test_no_custom_embed_is_attached_so_youtubes_card_renders():
+    # The bare URL lets Discord render YouTube's own player card; we must not
+    # attach a competing embed of our own.
+    payload = build_message(make_item("abc123"))
+    assert "embeds" not in payload
 
 
 def test_announcements_never_ping_a_channel():
     assert build_message(make_item())["allowed_mentions"] == {"parse": []}
 
 
-def test_the_embed_carries_the_video():
-    item = make_item("abc123")
-    embed = build_message(item)["embeds"][0]
-
-    assert embed["title"] == item.title
-    assert embed["url"] == item.url
-    assert embed["description"] == "A walkthrough."
-    assert embed["timestamp"] == to_iso(item.published_at)
-    assert embed["thumbnail"] == {"url": item.thumbnail_url}
-    assert embed["author"] == {"name": item.author_name, "url": item.author_url}
-    assert embed["footer"] == {"text": "Damien Burks • Community Partner • YouTube"}
-
-
-def test_the_raw_url_lives_in_a_field_so_discord_adds_no_second_preview():
-    embed = build_message(make_item("abc123"))["embeds"][0]
-    assert embed["fields"] == [
-        {
-            "name": "Watch",
-            "value": "https://www.youtube.com/watch?v=abc123",
-            "inline": False,
-        }
-    ]
-    assert "youtube.com" not in build_message(make_item("abc123"))["content"]
-
-
-@pytest.mark.parametrize("relationship", sorted(RELATIONSHIP_COLOURS))
-def test_the_colour_is_keyed_to_the_relationship(relationship):
-    item = make_item(relationship=relationship)
-    assert (
-        build_message(item)["embeds"][0]["color"] == RELATIONSHIP_COLOURS[relationship]
+def test_a_notify_role_is_mentioned_on_its_own_line():
+    payload = build_message(make_item("abc123"), notify_role_id="42")
+    assert payload["content"] == (
+        "<@&42>\n"
+        "New video from **Damien Burks**.\n"
+        "Check it out on YouTube: https://www.youtube.com/watch?v=abc123"
     )
 
 
-def test_an_unknown_relationship_gets_the_default_colour():
-    assert (
-        build_message(make_item(relationship="ALUMNI"))["embeds"][0]["color"]
-        == DEFAULT_COLOUR
+def test_a_notify_role_is_allow_listed_so_the_ping_fires():
+    payload = build_message(make_item(), notify_role_id="42")
+    assert payload["allowed_mentions"] == {"parse": [], "roles": ["42"]}
+
+
+def test_no_notify_role_means_no_role_mention_and_no_ping():
+    payload = build_message(make_item(), notify_role_id="")
+    assert "<@&" not in payload["content"]
+    assert payload["allowed_mentions"] == {"parse": []}
+
+
+def test_the_style_argument_no_longer_changes_the_output():
+    # Kept for signature compatibility; both values produce the same message.
+    assert build_message(make_item("abc123"), style="plain") == build_message(
+        make_item("abc123"), style="embed"
     )
 
 
-def test_a_long_description_is_trimmed_to_400_characters():
-    embed = build_message(make_item(description="x" * 900))["embeds"][0]
-    assert len(embed["description"]) == 400
-    assert embed["description"].endswith("…")
+def test_the_service_pings_the_notify_role_on_delivery():
+    transport = RecordingTransport()
+    service = YouTubePublishingService(
+        repository=ProcessingRepository(FakeTable()),
+        classifier=StubDetector(),
+        transport=transport,
+        channel_id=CHANNEL,
+        notify_role_id="42",
+    )
+    service.publish(make_item("abc123"), make_source())
 
-
-def test_a_long_title_is_trimmed_to_256_characters():
-    assert len(build_message(make_item(title="y" * 400))["embeds"][0]["title"]) == 256
-
-
-def test_an_empty_description_is_omitted():
-    assert "description" not in build_message(make_item(description=""))["embeds"][0]
-
-
-def test_the_plain_style_posts_the_bare_url():
-    payload = build_message(make_item("abc123"), style="plain")
-    assert payload == {
-        "content": "https://www.youtube.com/watch?v=abc123",
-        "allowed_mentions": {"parse": []},
-    }
-
-
-def test_truncate_leaves_short_text_alone():
-    assert truncate("short", 100) == "short"
-    assert truncate(None, 10) == ""
+    payload = transport.sent[0]["payload"]
+    assert payload["content"].startswith("<@&42>\n")
+    assert payload["allowed_mentions"] == {"parse": [], "roles": ["42"]}
 
 
 # -- the per-video workflow -------------------------------------------------
@@ -161,11 +141,15 @@ def test_a_long_form_video_is_claimed_posted_and_recorded():
     assert publisher.record("fresh")["status"] == STATUS_POSTED
 
 
-def test_the_configured_style_is_honoured():
+def test_the_published_message_is_the_plain_announcement_with_the_url():
     publisher = Publisher(message_style="plain")
     publisher.publish(make_item("abc123"))
     payload = publisher.transport.sent[0]["payload"]
-    assert payload["content"] == "https://www.youtube.com/watch?v=abc123"
+    assert payload["content"] == (
+        "New video from **Damien Burks**.\n"
+        "Check it out on YouTube: https://www.youtube.com/watch?v=abc123"
+    )
+    assert "embeds" not in payload
 
 
 def test_the_post_delay_applies_between_consecutive_posts_only():

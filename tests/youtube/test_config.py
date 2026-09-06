@@ -291,6 +291,28 @@ def test_a_disabled_feature_does_not_need_a_channel_id():
     assert config.discord_channel_id == ""
 
 
+def test_no_notify_role_id_defaults_to_empty():
+    assert load_config(base_document(), env={}).notify_role_id == ""
+
+
+def test_a_notify_role_id_is_read_from_the_document():
+    config = load_config(base_document(discord_notify_role_id="42"), env={})
+    assert config.notify_role_id == "42"
+
+
+def test_the_environment_overrides_the_notify_role_id():
+    config = load_config(
+        base_document(discord_notify_role_id="42"),
+        env={"HERALD_DISCORD_NOTIFY_ROLE_ID": "99"},
+    )
+    assert config.notify_role_id == "99"
+
+
+def test_a_non_numeric_notify_role_id_is_rejected():
+    with pytest.raises(ConfigurationError, match="discord_notify_role_id"):
+        load_config(base_document(discord_notify_role_id="Notifs"), env={})
+
+
 def test_an_unusable_message_style_is_rejected():
     with pytest.raises(ConfigurationError, match="message_style"):
         load_config(base_document(message_style="haiku"), env={})

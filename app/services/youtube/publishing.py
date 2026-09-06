@@ -38,69 +38,52 @@ from app.models.youtube import (
 from app.repositories.youtube.processing import ProcessingRepository
 from app.utils.clock import to_iso, utcnow
 from app.utils.logging import EventLogger
-from app.utils.text import truncate
 
-MAX_TITLE_CHARS = 256
-MAX_DESCRIPTION_CHARS = 400
-
-# Embed colour, keyed to the partner's relationship with DSB.
-RELATIONSHIP_COLOURS = {
-    "COMMUNITY_PARTNER": 0x5865F2,
-    "DSB": 0xE67E22,
-    "MEMBER": 0x57F287,
-    "SPONSOR": 0xFEE75C,
-}
-DEFAULT_COLOUR = 0x99AAB5
-
-# Announcements never ping a channel.
+# Announcements never ping a channel or @everyone. When a notify role is
+# configured it is allow-listed explicitly, so that role -- and only that
+# role -- is actually pinged.
 NO_MENTIONS = {"parse": []}
 
 
-def relationship_label(relationship: str) -> str:
-    """Human-readable relationship for the embed footer."""
-    return (relationship or "").replace("_", " ").title()
+def _mentions_for(role_id: str) -> Dict[str, Any]:
+    """The ``allowed_mentions`` that ping only the notify role, if any."""
+    if role_id:
+        return {"parse": [], "roles": [str(role_id)]}
+    return NO_MENTIONS
 
 
-def build_message(item: ContentItem, style: str = "embed") -> Dict[str, Any]:
+def _announcement_content(item: ContentItem, role_id: str) -> str:
+    """
+    Build the announcement text.
+
+    Deliberately plain: no custom embed and the bare video URL on its own
+    line, so Discord renders YouTube's native player card with the channel's
+    own thumbnail. The optional role ping leads on its own line.
+    """
+    lines = []
+    if role_id:
+        lines.append(f"<@&{role_id}>")
+    lines.append(f"New video from **{item.source_name}**.")
+    lines.append(f"Check it out on YouTube: {item.url}")
+    return "\n".join(lines)
+
+
+def build_message(
+    item: ContentItem, style: str = "embed", notify_role_id: str = ""
+) -> Dict[str, Any]:
     """
     Build the Discord message payload for one content item.
 
-    The raw URL lives inside the embed rather than the content line so
-    Discord does not add a second, duplicate link preview. The ``plain``
-    style posts the bare URL instead and lets Discord's native YouTube
-    player card do the work.
+    No custom embed is attached: the bare YouTube URL lets Discord render
+    YouTube's own player card and thumbnail. The ``style`` argument is kept
+    for signature compatibility but no longer changes the output.
+
+    When ``notify_role_id`` is set, the role is mentioned on its own line and
+    allow-listed in ``allowed_mentions`` so the ping fires.
     """
-    if style == "plain":
-        return {"content": item.url, "allowed_mentions": NO_MENTIONS}
-
-    embed: Dict[str, Any] = {
-        "title": truncate(item.title, MAX_TITLE_CHARS),
-        "url": item.url,
-        "color": RELATIONSHIP_COLOURS.get(item.relationship, DEFAULT_COLOUR),
-        "timestamp": to_iso(item.published_at),
-        "fields": [{"name": "Watch", "value": item.url, "inline": False}],
-        "footer": {
-            "text": f"{item.source_name} • {relationship_label(item.relationship)} • YouTube"
-        },
-    }
-
-    description = truncate(item.description, MAX_DESCRIPTION_CHARS)
-    if description:
-        embed["description"] = description
-
-    if item.author_name:
-        author: Dict[str, str] = {"name": item.author_name}
-        if item.author_url:
-            author["url"] = item.author_url
-        embed["author"] = author
-
-    if item.thumbnail_url:
-        embed["thumbnail"] = {"url": item.thumbnail_url}
-
     return {
-        "content": f"\U0001f4fa New from **{item.source_name}** on YouTube",
-        "embeds": [embed],
-        "allowed_mentions": NO_MENTIONS,
+        "content": _announcement_content(item, notify_role_id),
+        "allowed_mentions": _mentions_for(notify_role_id),
     }
 
 
@@ -129,6 +112,7 @@ class YouTubePublishingService:
         channel_id: str,
         message_style: str = "embed",
         post_delay_seconds: float = 0.0,
+        notify_role_id: str = "",
         sleeper=time.sleep,
         clock=utcnow,
         event_logger: Optional[EventLogger] = None,
@@ -139,6 +123,7 @@ class YouTubePublishingService:
         self.channel_id = str(channel_id)
         self.message_style = message_style
         self.post_delay_seconds = post_delay_seconds
+        self.notify_role_id = str(notify_role_id or "")
         self.sleeper = sleeper
         self.clock = clock
         self.events = event_logger or EventLogger(__name__)
@@ -338,7 +323,8 @@ class YouTubePublishingService:
             self.sleeper(self.post_delay_seconds)
 
         message_id = self.transport.send(
-            self.channel_id, build_message(item, self.message_style)
+            self.channel_id,
+            build_message(item, self.message_style, self.notify_role_id),
         )
         self._has_posted = True
 
