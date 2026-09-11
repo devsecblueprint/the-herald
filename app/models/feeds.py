@@ -65,9 +65,12 @@ class FeedsConfig:
             ValueError: If required configuration is missing
         """
         if yaml_path is None:
-            # Default to the config.yaml in the static directory
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            yaml_path = os.path.join(current_dir, "static", "config.yaml")
+            # config.yaml lives in app/static/, a sibling of this file's
+            # package (app/models/), so resolve it against the app root
+            # rather than this module's directory.
+            models_dir = os.path.dirname(os.path.abspath(__file__))
+            app_dir = os.path.dirname(models_dir)
+            yaml_path = os.path.join(app_dir, "static", "config.yaml")
 
         try:
             with open(yaml_path, "r", encoding="utf-8") as file:
